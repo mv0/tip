@@ -9,5 +9,10 @@ BS=`(git branch -a | grep origin | grep -v master | grep -v HEAD | grep -v " lin
 
 for B in $BS
 do
-    git branch $B origin/$B
+    # Check if the unique branch is a local one
+    L=`git branch | grep $B`
+    if [ -z "$L" ]
+    then
+	git branch $B origin/$B
+    fi
 done
