@@ -1,4 +1,4 @@
 #!/bin/bash
 
-git-tag | grep ^tip-auto-history
+git-tag | grep ^tip-history
 

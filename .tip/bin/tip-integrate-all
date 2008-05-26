@@ -36,7 +36,7 @@ git merge out-of-tree || {
 D=`get_date_for_tag`
 
 # save the new master head:
-git-tag -m "auto-latest update: $D" tip-auto-history-$D master ||
+git-tag -m "auto-latest update: $D" tip-history-$D master ||
 					   { echo error6; exit -1; }
 
 #
@@ -46,5 +46,5 @@ date				>> ~/tip-master.log
 cat .git/refs/heads/master	>> ~/tip-master.log
 echo				>> ~/tip-master.log
 
-echo "integration done - new tag: tip-auto-history-$D"
+echo "integration done - new tag: tip-history-$D"
 
