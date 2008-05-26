@@ -19,7 +19,7 @@ if [ -f .git/tip-sync-remote-cache ]
 then
     echo "Interrupted sync-remote detected"
     read -p "Use the previous cache information Y/n ?" $A
-    if [ "$A" == "n" -o "$A" = "N" ]
+    if [ "$A" = "n" -o "$A" = "N" ]
     then
 	rm .git/tip-sync-remote-cache
     fi
