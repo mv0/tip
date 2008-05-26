@@ -2,15 +2,25 @@
 
 HEADS=`git-ls-remote -h origin | sed "s/\t/:/"`
 
+UPDATE=0
 for H in $HEADS
 do
     SHAR=`echo $H | sed "s/\:.*//"`
     REF=`echo $H | sed "s/.*\://"`
     BRANCH=`echo $REF | sed "s@refs/heads/@@"`
-    SHAL=`git show $BRANCH | head -n1 | sed "s/commit //"`
 
+    SHAL=`git show origin/$BRANCH | head -n1 | sed "s/commit //"`
     if [ "$SHAR" != "$SHAL" ]
     then
-	echo "Remote head differs of branch: "$BRANCH
+	echo "Remote head updated of branch: "$BRANCH
+	UPDATE=1
     fi
 done
+
+if [ $UPDATE -eq 0 ]
+then
+    echo "No changes in the remote repository since last pull"
+    exit 0;
+fi
+
+exit 1;
