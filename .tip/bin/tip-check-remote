@@ -1,0 +1,16 @@
+#!/bin/sh
+
+HEADS=`git-ls-remote -h origin | sed "s/\t/:/"`
+
+for H in $HEADS
+do
+    SHAR=`echo $H | sed "s/\:.*//"`
+    REF=`echo $H | sed "s/.*\://"`
+    BRANCH=`echo $REF | sed "s@refs/heads/@@"`
+    SHAL=`git show $BRANCH | head -n1 | sed "s/commit //"`
+
+    if [ "$SHAR" != "$SHAL" ]
+    then
+	echo "Remote head differs of branch: "$BRANCH
+    fi
+done
