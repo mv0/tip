@@ -16,8 +16,6 @@ then
     done
 fi
 
-echo ""
-
 BRANCHES=`get_topic_branches`
 
 UPDATE=0
