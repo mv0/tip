@@ -10,7 +10,7 @@ then
     echo "Remote repository has updates"
     while true
     do
-	read -p "Pull first y/n" $A
+	read -p "Pull first y/n" A
 	[ "$A" = "n" ] && break;
 	[ "$A" = "y" ] && exit 0;
     done
