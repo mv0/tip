@@ -11,14 +11,8 @@ then
     while true
     do
 	read -p "Pull first y/n" $A
-	case $A in
-	    y)
-		exit 0;;
-	    n)
-		break;;
-	    *)
-		;;
-	esac
+	[ "$A" = "n" ] && break;
+	[ "$A" = "y" ] && exit 0;
     done
 fi
 

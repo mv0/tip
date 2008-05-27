@@ -2,12 +2,12 @@
 git-checkout . || { echo error; exit -1; }
 
 while :; do
-  echo "next patch to process: "`qn`
+  echo "next patch to process: "`quilt next`
   read -p "apply it?"
-  git-am `qn`
+  git-am -i patches/`quilt next`
   read -p "remove from series file?"
-  q-remove-next-patch-from-series
+  rm -rf .pc
+  quilt del -n 
   echo "done!"
   echo
 done
-

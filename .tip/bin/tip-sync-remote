@@ -18,7 +18,7 @@ check_master
 if [ -f .git/tip-sync-remote-cache ]
 then
     echo "Interrupted sync-remote detected"
-    read -p "Use the previous cache information Y/n ?" $A
+    read -p "Use the previous cache information Y/n ?" A
     if [ "$A" = "n" -o "$A" = "N" ]
     then
 	rm .git/tip-sync-remote-cache
@@ -82,7 +82,7 @@ do
 	    then
 		echo "You did not resolve the conflict"
 		echo "If you cancel the update then you can restart with the cached update information"
-		read -p "Cancel with ^C. Hit return to drop back in a subshell" $A
+		read -p "Cancel with ^C. Hit return to drop back in a subshell" A
 		continue
 	    fi
 
