@@ -25,6 +25,7 @@ x86/mpparse
 x86/nmi
 x86/numa
 x86/pat
+x86/ptemask
 x86/resumetrace
 x86/threadinfo
 x86/timers
@@ -33,4 +34,3 @@ x86/xen
 
 # PEBS disabled - needs ack from Roland
 #x86/pebs
-# x86/ptemask - upstream now
