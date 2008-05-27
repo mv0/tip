@@ -10,7 +10,7 @@ BS=`(git branch -a | grep origin | grep -v master | grep -v HEAD | grep -v " lin
 for B in $BS
 do
     # Check if the unique branch is a local one
-    L=`git branch | grep $B`
+    L=`git branch | grep " $B$"`
     if [ -z "$L" ]
     then
 	git branch $B origin/$B
