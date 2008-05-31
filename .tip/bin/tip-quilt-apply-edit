@@ -7,7 +7,18 @@ while :; do
   git-am -i `quilt next`
   read -p "remove from series file?"
   rm -rf .pc
-  quilt del -n 
+
+  #
+  # Remove the next patch from Quilt but leave some trace of
+  # what happened:
+  #
+  quilt next >/dev/null 2>/dev/null && {
+	PATCH_NAME=$(q next | cut -d/ -f2-)
+	CURR_BRANCH=$(git-branch | grep ^\* | cut -c3-)
+	echo "removing $PATCH_NAME"
+	sed -i "s/$X/# in -tip/$CURR_BRANCH now: $PATCH_NAME/g" patches/series
+  }
+
   echo "done!"
   echo
 done
