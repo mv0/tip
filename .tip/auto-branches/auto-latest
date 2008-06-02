@@ -32,6 +32,8 @@ stackprotector
 timers/clockevents
 timers/posixtimers
 timers/nohz
+timers/hpet
+timers/hrtimers
 
 x86/pebs
 
