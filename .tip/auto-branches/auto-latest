@@ -40,3 +40,7 @@ tracing/textedit
 tracing/nmisafe
 tracing/stopmachine-allcpus
 tracing/immediates
+
+# core build system / linkage changes:
+build
+
