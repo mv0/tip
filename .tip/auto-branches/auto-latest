@@ -12,6 +12,7 @@ core/rodata
 core/softirq
 core/softlockup
 core/stacktrace
+core/futex-64bit
 core/urgent
 
 cpus4096
