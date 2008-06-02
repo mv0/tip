@@ -1,2 +1,14 @@
 
-git-log linus..$@
+for N in $(git-branch | grep -vE ' master$| base$|for-linus|auto|tmp' | cut -c3-); do
+
+  ITEMS=$(git-rev-list --reverse linus..$N -- $@)
+
+  for M in $ITEMS; do
+    echo
+    echo "# $N: $M"
+    echo
+    git-log -1 --pretty=email --no-merges $M $@ | cat
+  done
+
+done
+
