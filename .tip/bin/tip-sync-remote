@@ -102,6 +102,7 @@ done
 # force update the auto-branches
 
 BS=`get_auto_branches`
+BS=$BS" master"
 
 for B in $BS
 do
@@ -125,9 +126,10 @@ done
 
 rm .git/tip-sync-remote-cache
 
+# switch back to master again
+git-checkout master
+
 # create missing local branches
 tip-create-local-branches.sh
 
-# switch back to master again
-git-checkout master
 
