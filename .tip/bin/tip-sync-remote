@@ -23,13 +23,15 @@ then
     then
 	rm .git/tip-sync-remote-cache
     fi
-else
+fi
+
+if [ ! -f .git/tip-sync-remote-cache ]
+then
     BS=`git-branch | grep -vE " linus|tmp" | cut -c3-`
-    RHEADS=""
     for B in $BS
     do
 	SHA=`git-rev-list origin/$B --max-count=1`
-	echo $RHEADS" "$SHA":"$B >>.git/tip-sync-remote-cache
+	echo $SHA":"$B >>.git/tip-sync-remote-cache
     done
 fi
 
@@ -106,10 +108,7 @@ BS=$BS" master"
 
 for B in $BS
 do
-    RH=`grep "$B" .git/tip-sync-remote-cache`
-    RB=`echo $RH | sed "s/.*\://"`
-    RH=`echo $RH | sed "s/\:.*//"`
-
+    RH=`git-rev-list $B --max-count=1`
     # Get and check the new remote head"
     NRH=`git-rev-list origin/$B --max-count=1`
     if [ "$RH" = "$NRH" ]
