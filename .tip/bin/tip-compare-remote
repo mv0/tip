@@ -12,7 +12,7 @@ do
     REF=$(echo $H | sed "s/.*\://")
     BRANCH=$(echo $REF | sed "s@refs/heads/@@")
     git show $BRANCH 2>/dev/null >/dev/null || {
-	    printf "%-30s: not in local\n" $BRANCH
+	    printf "%-30s: remote only\n" $BRANCH
 	    continue
     }
     SHAL=$(git show $BRANCH | head -n1 | sed "s/commit //")
@@ -20,6 +20,6 @@ do
     if [ "$SHAR" != "$SHAL" ]
     then
         COMMITS=$(git-rev-list $SHAR..$SHAL | wc -l)
-        printf "%-30s: differs from remote (%d commits)\n" $BRANCH $COMMITS
+        printf "%-30s: remote delta (%d commits)\n" $BRANCH $COMMITS
     fi
 done
