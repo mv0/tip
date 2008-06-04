@@ -5,7 +5,7 @@
 check_master
 
 echo "backing up the full -tip repo ..."
-mkdir -f ~/tip-backups
+mkdir -p ~/tip-backups
 
 FILE=~/tip-backups/tip-git-$(get_date_for_tag).tar.bz2
 
