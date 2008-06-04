@@ -2,7 +2,7 @@
 
 . ~/bin/tip/tip-lib
 
-check_master || exit -1
+check_master
 
 echo "backing up the full -tip repo ..."
 mkdir -p ~/tip-backups || exit -1
