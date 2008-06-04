@@ -1,0 +1,15 @@
+#!/bin/bash
+
+. ~/bin/tip/tip-lib
+
+check_master
+
+echo "backing up the full -tip repo ..."
+mkdir -f ~/tip-backups
+
+FILE=~/tip-backups/tip-git-$(get_date_for_tag).tar.bz2
+
+tar cjf $FILE .git
+
+ls -l $FILE
+
