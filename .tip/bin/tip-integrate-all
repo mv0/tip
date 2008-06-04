@@ -1,6 +1,8 @@
 
 . $(dirname "$0")/tip-lib
 
+tip-backup || { echo "backup failed"; exit -1; }
+
 PREV_AUTO_LATEST=$(cat .git/refs/heads/auto-latest)
 
 tip-integrate auto-sched-next		|| { echo error1; exit -1; }
