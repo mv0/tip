@@ -1,6 +1,6 @@
 
 git-checkout tip || { echo error1; exit -1; }
-git-fetch origin tip
+git-fetch origin
 git-merge origin/tip
 
 cp -au .tip/bin/* ~/bin/tip/
