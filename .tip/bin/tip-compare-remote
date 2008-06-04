@@ -2,24 +2,22 @@
 
 . ~/bin/tip/tip-lib
 
-check_master
-
-HEADS=$(git-ls-remote -h origin | sed "s/\t/:/")
+HEADS=$(git-ls-remote -h origin | sed 's/\t/:/')
 
 for H in $HEADS
 do
-    SHAR=$(echo $H | sed "s/:.*//")
-    REF=$(echo $H | sed "s/.*://")
-    BRANCH=$(echo $REF | sed "s@refs/heads/@@")
+    SHAR=$(echo $H | sed 's/:.*//')
+    REF=$(echo $H | sed 's/.*://')
+    BRANCH=$(echo $REF | sed 's@refs/heads/@@')
     git show $BRANCH 2>/dev/null >/dev/null || {
-	    printf "%-30s: remote only\n" $BRANCH
+	    printf "%-30s: not in local\n" $BRANCH
 	    continue
     }
-    SHAL=$(git show $BRANCH | head -n1 | sed "s/commit //")
+    SHAL=$(git show $BRANCH | head -n1 | sed 's/commit //')
 
     if [ "$SHAR" != "$SHAL" ]
     then
-        COMMITS=$(git-rev-list $SHAR..$SHAL | wc -l)
-        printf "%-30s: remote delta (%d commits)\n" $BRANCH $COMMITS
+        COMMITS=$(git-rev-list $BRANCH..origin/$BRANCH | wc -l)
+        printf "%-30s: differs from remote (%d commits)\n" $BRANCH $COMMITS
     fi
 done
