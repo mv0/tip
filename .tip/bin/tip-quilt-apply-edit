@@ -4,7 +4,7 @@ git-checkout . || { echo error; exit -1; }
 while :; do
   echo "next patch to process: "`quilt next`
   read -p "apply it?"
-  git-am -i `quilt next`
+  git-am -i `quilt next` || exit -1
   read -p "remove from series file?"
   rm -rf .pc
 
