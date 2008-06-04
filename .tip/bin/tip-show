@@ -1,7 +1,9 @@
 
-for N in $(tip-topic-branches); do
+. $(dirname "$0")/tip-lib
 
-  ITEMS=$(git-rev-list --reverse base..$N -- $@)
+for N in $(get_all_branches); do
+
+  ITEMS=$(git-rev-list --reverse linus..$N -- $@)
 
   for M in $ITEMS; do
     echo "$N: $M"
