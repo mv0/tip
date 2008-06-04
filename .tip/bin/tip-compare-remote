@@ -8,8 +8,8 @@ HEADS=$(git-ls-remote -h origin | sed "s/\t/:/")
 
 for H in $HEADS
 do
-    SHAR=$(echo $H | sed "s/\:.*//")
-    REF=$(echo $H | sed "s/.*\://")
+    SHAR=$(echo $H | sed "s/:.*//")
+    REF=$(echo $H | sed "s/.*://")
     BRANCH=$(echo $REF | sed "s@refs/heads/@@")
     git show $BRANCH 2>/dev/null >/dev/null || {
 	    printf "%-30s: remote only\n" $BRANCH
