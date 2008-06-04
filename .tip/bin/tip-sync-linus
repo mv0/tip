@@ -77,7 +77,7 @@ do
     then
 	echo "Merge of linus latest into branch "$B" succeeded"
 	read -p "Discard merge and rewind ? Y/n" A
-	if [ "$A" != "n" -o "$A" != "N" ]
+	if [ "$A" != "n" -a "$A" != "N" ]
 	then
 	    git reset --hard $LH
 	else
