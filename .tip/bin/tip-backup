@@ -2,14 +2,14 @@
 
 . ~/bin/tip/tip-lib
 
-check_master
+check_master || exit -1
 
 echo "backing up the full -tip repo ..."
-mkdir -p ~/tip-backups
+mkdir -p ~/tip-backups || exit -1
 
 FILE=~/tip-backups/tip-git-$(get_date_for_tag).tar.bz2
 
-tar cjf $FILE .git
+tar cjf $FILE .git || exit -1
 
 ls -l $FILE
 
