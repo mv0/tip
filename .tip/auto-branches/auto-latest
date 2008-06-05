@@ -35,6 +35,8 @@ timers/nohz
 timers/hpet
 timers/hrtimers
 
+genirq
+
 x86/pebs
 
 tracing/markers
