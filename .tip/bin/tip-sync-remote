@@ -103,7 +103,7 @@ done
 
 # force update the auto-branches
 
-BS=`get_auto_branches`
+BS=`get_all_auto_branches`
 BS=$BS" master"
 
 for B in $BS

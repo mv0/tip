@@ -12,6 +12,16 @@ get_auto_branches() {
     git-ls-tree  tip -- .tip/auto-branches/ | sed "s@.*tip/auto-branches/@@"
 }
 
+get_all_auto_branches() {
+
+    AB=`git-ls-tree  tip -- .tip/auto-branches/ | sed "s@.*tip/auto-branches/@@"`
+    for B in $AB
+    do
+	echo $B
+	echo $B"-base"
+    done
+}
+
 get_topic_branches() {
     git-branch | grep -vE 'master|linus|tmp|auto-' | cut -c3-
 }
