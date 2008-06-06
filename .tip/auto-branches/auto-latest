@@ -8,14 +8,8 @@ tracing/mmiotrace-mergefixups
 auto-timers-next
 auto-genirq-next
 
-core/locking
-core/percpu
-core/printk
-core/rodata
-core/softirq
-core/softlockup
-core/stacktrace
-core/futex-64bit
+auto-core-next
+
 core/urgent
 
 cpus4096

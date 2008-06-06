@@ -1,0 +1,9 @@
+core/locking
+core/percpu
+core/printk
+core/rodata
+core/softirq
+core/softlockup
+core/stacktrace
+core/urgent
+
