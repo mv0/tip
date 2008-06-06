@@ -15,13 +15,13 @@ auto-cpus4096-next
 # Fixup cpus4096 merge
 tracing/ftrace-mergefixups
 
+auto-safe-poison-pointers
+
+auto-stackprotector
+
 kmemcheck
 
 pci-for-jesse
-
-safe-poison-pointers
-
-stackprotector
 
 x86/pebs
 
