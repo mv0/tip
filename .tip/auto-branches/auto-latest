@@ -5,6 +5,8 @@ auto-ftrace-next
 # Fixup RCU merge
 tracing/mmiotrace-mergefixups
 
+auto-timers-next
+
 core/locking
 core/percpu
 core/printk
@@ -26,12 +28,6 @@ pci-for-jesse
 safe-poison-pointers
 
 stackprotector
-
-timers/clockevents
-timers/posixtimers
-timers/nohz
-timers/hpet
-timers/hrtimers
 
 genirq
 
