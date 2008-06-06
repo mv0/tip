@@ -10,8 +10,9 @@
 check_master
 
 # Check for linux-next
-LNEXT_REM=$(git-config --get branch.linux-next.remote)
-[ -z "LNEXT_REM" ] && {
+LNEXT_REM=$(git-config --get branch.linux-next.remote);
+
+[ -z "$LNEXT_REM" ] && {
     echo "linux-next branch missing"
     echo "Setting it up for you"
     git-remote add -t master -f linux-next-git git://git.kernel.org/pub/scm/linux/kernel/git/sfr/linux-next.git
@@ -20,6 +21,7 @@ LNEXT_REM=$(git-config --get branch.linux-next.remote)
 	echo "please fix manually"
 	exit 1;
     }
+    LNEXT_REM="linux-next-git"
 }
 
 AB=$(get_auto_branches_no_latest)
