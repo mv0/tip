@@ -6,6 +6,7 @@ auto-ftrace-next
 tracing/mmiotrace-mergefixups
 
 auto-timers-next
+auto-genirq-next
 
 core/locking
 core/percpu
@@ -28,8 +29,6 @@ pci-for-jesse
 safe-poison-pointers
 
 stackprotector
-
-genirq
 
 x86/pebs
 
