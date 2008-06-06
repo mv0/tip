@@ -64,5 +64,5 @@ get_topic_reference() {
 
 get_linux_next_branches() {
     local NT=`git-ls-tree linux-next -- Next/Trees | sed -e "s/.*blob //" -e "s/\ *Next.*//"`
-    #| grep "linux-2.6-tip.git"
+    git-show $NT | grep "linux-2.6-tip.git" | sed "s/.*#//"
 }
