@@ -1,14 +1,17 @@
+#!/bin/sh
 
 . $(dirname "$0")/tip-lib
 
 tip-backup || { echo "backup failed"; exit -1; }
 
-PREV_AUTO_LATEST=$(cat .git/refs/heads/auto-latest)
+AB=$(get_auto_branches_no_latest)
 
-tip-integrate auto-sched-next		|| { echo error1; exit -1; }
-tip-integrate auto-ftrace-next		|| { echo error2; exit -1; }
-tip-integrate auto-x86-next		|| { echo error3; exit -1; }
-tip-integrate auto-latest		|| { echo error4; exit -1; }
+for B in $AB
+do
+    tip-integrate $B || { echo "Integration of "$B" failed"; exit -1; }
+done
+
+tip-integrate auto-latest || { echo "Integration of auto-latest failed"; exit -1; }
 
 git-checkout auto-latest
 git branch -f master
