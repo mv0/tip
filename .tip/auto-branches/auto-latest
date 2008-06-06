@@ -10,7 +10,8 @@ auto-genirq-next
 
 auto-core-next
 
-cpus4096
+auto-cpus4096-next
+
 # Fixup cpus4096 merge
 tracing/ftrace-mergefixups
 
