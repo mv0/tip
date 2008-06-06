@@ -66,3 +66,11 @@ get_linux_next_branches() {
     local NT=`git-ls-tree linux-next -- Next/Trees | sed -e "s/.*blob //" -e "s/\ *Next.*//"`
     git-show $NT | grep "linux-2.6-tip.git" | sed "s/.*#//"
 }
+
+get_auto_merged_topics() {
+    for B in $@
+    do
+	local TB=`git-ls-tree tip -- .tip/auto-branches/$B | sed -e "s/.*blob //" -e "s/\ *.tip.*//"`
+	git-show $TB | sed -e "s/#.*//" -e "/^ *$/d"
+    done
+}
