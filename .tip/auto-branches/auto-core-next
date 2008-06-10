@@ -1,3 +1,4 @@
+core/misc
 core/locking
 core/percpu
 core/printk
