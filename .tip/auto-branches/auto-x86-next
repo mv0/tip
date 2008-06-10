@@ -14,7 +14,6 @@ x86/cpu
 x86/defconfig
 x86/gart
 x86/i8259
-x86/idle
 x86/intel
 x86/irq
 x86/irqstats
