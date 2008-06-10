@@ -1,3 +1,4 @@
+core/urgent
 core/misc
 core/locking
 core/percpu
@@ -6,5 +7,5 @@ core/rodata
 core/softirq
 core/softlockup
 core/stacktrace
-core/urgent
+core/topology
 
