@@ -24,6 +24,7 @@ kmemcheck
 pci-for-jesse
 
 x86/pebs
+x86/uv
 
 tracing/markers
 tracing/textedit
