@@ -26,6 +26,7 @@ pci-for-jesse
 x86/pebs
 x86/uv
 
+tracing/sched_markers
 tracing/markers
 tracing/textedit
 tracing/nmisafe
