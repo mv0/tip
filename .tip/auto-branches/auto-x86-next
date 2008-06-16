@@ -5,7 +5,7 @@ x86/urgent
 x86/numa-fixes
 
 # undoes a commit from x86/urgent, to make the x86/apic merge cleaner:
-x86/urgent-undo-ioapic
+# x86/urgent-undo-ioapic
 x86/apic
 
 x86/apm
