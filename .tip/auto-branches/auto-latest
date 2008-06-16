@@ -19,7 +19,7 @@ auto-safe-poison-pointers-next
 
 auto-stackprotector-next
 
-kmemcheck
+kmemcheck2
 
 pci-for-jesse
 
