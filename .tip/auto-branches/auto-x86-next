@@ -39,3 +39,7 @@ x86/mmio
 
 # PEBS disabled - needs ack from Roland
 #x86/pebs
+
+# NOTE: this is branched off a previous version of auto-x86-next, 55e191ba6
+x86/smpboot
+
