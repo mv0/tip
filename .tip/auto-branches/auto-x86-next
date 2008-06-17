@@ -36,6 +36,7 @@ x86/vdso
 x86/xen
 x86/setup
 x86/mmio
+x86/delay
 
 # PEBS disabled - needs ack from Roland
 #x86/pebs
