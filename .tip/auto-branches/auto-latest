@@ -33,6 +33,9 @@ x86/pci-ioapic-boot-irq-quirks
 # early crash with: http://redhat.com/~mingo/misc/config-Wed_Jun_18_14_51_18_CEST_2008.bad
 # x86/mm-debug
 
+# waiting for akpm's ack. Based off x86/mpparse, commit 9920a004626
+x86/mm-remove-arch-get-ram-range
+
 tracing/sched_markers
 tracing/markers
 tracing/textedit
