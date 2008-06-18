@@ -23,8 +23,10 @@ kmemcheck
 
 pci-for-jesse
 
+# experimental x86 branches not for linux-next yet:
 x86/pebs
 x86/uv
+x86/pci-ioapic-boot-irq-quirks
 
 tracing/sched_markers
 tracing/markers
