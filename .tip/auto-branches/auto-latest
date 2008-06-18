@@ -26,6 +26,8 @@ pci-for-jesse
 # experimental x86 branches not for linux-next yet:
 x86/pebs
 x86/uv
+
+# branched off x86/apic cded44424013defddadac700dcefe72a68ad9173:
 x86/pci-ioapic-boot-irq-quirks
 
 tracing/sched_markers
