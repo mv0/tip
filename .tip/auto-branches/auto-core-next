@@ -9,3 +9,4 @@ core/softirq
 core/softlockup
 core/stacktrace
 core/topology
+core/debugobjects
