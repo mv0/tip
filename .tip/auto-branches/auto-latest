@@ -29,6 +29,8 @@ x86/uv
 
 # branched off x86/apic cded44424013defddadac700dcefe72a68ad9173:
 x86/pci-ioapic-boot-irq-quirks
+# waiting for akpm's ack to put into auto-x86-next:
+x86/mm-debug
 
 tracing/sched_markers
 tracing/markers
