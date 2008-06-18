@@ -3,10 +3,9 @@ git-checkout . || { echo error; exit -1; }
 
 while :; do
   echo "next patch to process: "`quilt next`
-  read -p "apply it?"
-  git-am -i `quilt next` || exit -1
-  read -p "remove from series file?"
+  read -p "apply it and remove from series file?"
   rm -rf .pc
+  git-am `quilt next` || exit -1
 
   #
   # Remove the next patch from Quilt but leave some trace of
