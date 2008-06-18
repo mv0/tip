@@ -2,6 +2,10 @@
 git-checkout . || { echo error; exit -1; }
 
 while :; do
+  quilt next >/dev/null 2>/dev/null || {
+    echo "no more patches to apply."; exit 0;
+  }
+
   echo "next patch to process: "`quilt next`
   read -p "apply it and remove from series file?"
   rm -rf .pc
