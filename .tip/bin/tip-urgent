@@ -1,5 +1,5 @@
 
 git-shortlog --no-merges \
  $(git-branch | grep -E 'urgent|for-linus' | grep -v undo | \
-   sed 's/^  /linus../g')
+   sed 's/^  /linus../g') | uniq | less
 
