@@ -1,4 +1,5 @@
 
 git-shortlog --no-merges \
- $(tip-topic-branches | grep urgent | grep -v undo | sed 's/^/linus../g')
+ $(tip-topic-branches | grep -E 'urgent|for-linus' | grep -v undo | \
+   sed 's/^/linus../g')
 
