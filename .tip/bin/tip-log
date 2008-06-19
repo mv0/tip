@@ -1,5 +1,5 @@
 
-for N in $(git-branch | grep -vE ' master$| base$|for-linus|auto|tmp' | cut -c3-); do
+for N in $(git-branch | grep -vE ' master$| base$|for-linus|auto|linux-next|tmp' | cut -c3-); do
 
   ITEMS=$(git-rev-list --reverse linus..$N -- $@)
 
