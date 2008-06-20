@@ -46,3 +46,6 @@ tracing/immediates
 # core build system / linkage changes:
 build
 
+# API change - needs one more iteration as suggested by Jeremy:
+tip/sched/new-API-sched_setscheduler
+
