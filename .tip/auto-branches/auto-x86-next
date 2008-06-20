@@ -45,3 +45,4 @@ x86/delay
 x86/smpboot
 
 x86/idle
+x86/fixmap
