@@ -10,3 +10,4 @@ core/softlockup
 core/stacktrace
 core/topology
 core/debugobjects
+core/futexes
