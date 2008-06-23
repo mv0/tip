@@ -58,8 +58,7 @@ get_date_for_tag() {
 }
 
 get_topic_reference() {
-    local TR=`echo $1 | sed "s@/@-@"`
-    git-tag | grep tip-$TR | sort | tail -n1
+    git-merge-base $1 linus
 }
 
 get_linux_next_branches() {
