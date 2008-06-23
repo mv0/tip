@@ -34,7 +34,23 @@ git-checkout $BRANCH
 for B in $MB
 do
     echo "Merging $B"
-    git-merge $B || {
+    git-merge $B 2>.merge.log >.merge.log0 || {
+
+	cat .merge.log
+        cat .merge.log0
+
+	# stupid special for lack of git-rm support in git-rerere:
+        grep -q 'arch/x86/kernel/nmi_32.c deleted in x86/nmi and modified in HEAD' .merge.log0 && git-rm arch/x86/kernel/nmi_32.c
+
+	NR_AUTO=$(grep -E '^Resolved .* using previous resolution.$' .merge.log | wc -l)
+	NR_PENDING=$(git-ls-files -u | cut -f2 | uniq | wc -l)
+
+	[ "$NR_AUTO" = "$NR_PENDING" ] && {
+            echo "Found $NR_AUTO auto-merged files - committing them."
+	    git-add $(git-ls-files -u | cut -f2 | sort | uniq)
+	    git-commit -s -m "manual merge of $B" || abort_merge;
+            continue;
+        }
 
 	echo Merging $B failed
 	echo merge conflict - run tip-mergetool
