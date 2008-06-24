@@ -50,3 +50,4 @@ x86/fixmap
 # NOTE: this is branched off of previous versions of x86/mpparse, x86/cpu, etc.
 x86/setup-memory
 
+x86/oprofile
