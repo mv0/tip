@@ -30,8 +30,8 @@ x86/uv
 # branched off x86/apic cded44424013defddadac700dcefe72a68ad9173:
 x86/pci-ioapic-boot-irq-quirks
 # waiting for akpm's ack to put into auto-x86-next:
-# early crash with: http://redhat.com/~mingo/misc/config-Wed_Jun_18_14_51_18_CEST_2008.bad
-# x86/mm-debug
+# early crash with: http://redhat.com/~mingo/misc/config-Wed_Jun_18_14_51_18_CEST_2008.bad - hm, seems fixed meanwhile
+x86/mm-debug
 
 # waiting for akpm's ack. Based off x86/mpparse, commit 9920a004626
 x86/mm-remove-arch-get-ram-range
