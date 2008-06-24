@@ -51,3 +51,7 @@ x86/fixmap
 x86/setup-memory
 
 x86/oprofile
+
+# NOTE: branched off a specific version of x86/nmi + x86/apic:
+x86/nmi-watchdog
+
