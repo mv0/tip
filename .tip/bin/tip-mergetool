@@ -7,6 +7,8 @@
   SRC=`git-ls-files -u | grep $1 | cut -f2 | head -1`
 }
 
+/bin/cp $SRC $SRC.orig.tipmerge
+
 [ "$SRC" = "" -o ! -f "$SRC" ] && { echo "$1 has no conflicts!"; exit -1; }
 
 SRC_SED=`echo $SRC | sed 's/\//\\\\\//g'`
