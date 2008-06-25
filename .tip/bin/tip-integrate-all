@@ -23,7 +23,8 @@ git branch -f master
 git checkout master
 
 git merge out-of-tree || {
-	echo Merging $B failed
+	echo
+	echo Merging out-of-tree into master failed
 	echo merge conflict - run tip-mergetool
 	echo
 	echo running subshell - type "exit" when resolved

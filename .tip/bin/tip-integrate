@@ -52,7 +52,8 @@ do
             continue;
         }
 
-	echo Merging $B failed
+	echo
+	echo Merging $B into $BRANCH failed
 	echo merge conflict - run tip-mergetool
 	echo
 	echo running subshell - type "exit" when resolved
