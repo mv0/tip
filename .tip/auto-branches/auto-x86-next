@@ -55,3 +55,5 @@ x86/oprofile
 # NOTE: branched off a specific version of x86/nmi + x86/apic:
 x86/nmi-watchdog
 
+# NOTE: branched off a previous version of auto-x86-next, 6866105b4
+x86/xen-64bit
