@@ -35,7 +35,7 @@ git merge out-of-tree || {
 	then
 	    echo "Merge was not committed! Fixing it up"
 	    git-add $(git-ls-files -u | cut -f2 | sort | uniq)
-	    git-commit -s || abort_merge;
+	    git-commit -n -s || abort_merge;
 	fi
 }
 

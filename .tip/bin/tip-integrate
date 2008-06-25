@@ -48,7 +48,7 @@ do
 	[ "$NR_AUTO" = "$NR_PENDING" ] && {
             echo "Found $NR_AUTO auto-merged files - committing them."
 	    git-add $(git-ls-files -u | cut -f2 | sort | uniq)
-	    git-commit -s -m "manual merge of $B" || abort_merge;
+	    git-commit -n -s -m "manual merge of $B" || abort_merge;
             continue;
         }
 
@@ -64,7 +64,7 @@ do
 	then
 	    echo "Merge was not committed! Fixing it up"
 	    git-add $(git-ls-files -u | cut -f2 | sort | uniq)
-	    git-commit -s || abort_merge;
+	    git-commit -n -s || abort_merge;
 	fi
     }
 done
