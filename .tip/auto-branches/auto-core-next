@@ -1,6 +1,5 @@
 core/urgent
 core/misc
-mm/xen
 core/locking
 core/percpu
 core/printk
