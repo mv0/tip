@@ -23,9 +23,6 @@ kmemcheck
 
 pci-for-jesse
 
-# needs Roland ack:
-# x86/pebs
-
 # experimental x86 branches not for linux-next yet:
 x86/uv
 
@@ -47,4 +44,7 @@ tracing/immediates
 
 # core build system / linkage changes:
 build
+
+# needs Roland ack:
+x86/pebs
 
