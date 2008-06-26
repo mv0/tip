@@ -57,3 +57,6 @@ x86/nmi-watchdog
 
 # NOTE: branched off a previous version of auto-x86-next, 6866105b4
 x86/xen-64bit
+
+x86/crashdump
+
