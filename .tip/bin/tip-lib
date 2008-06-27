@@ -4,12 +4,12 @@
 #
 
 get_current_branch() {
-    git-branch | grep "*" | cut -c3-
+    git branch | grep "*" | cut -c3-
 }
 
 get_auto_branches() {
 
-    git-ls-tree  tip -- .tip/auto-branches/ | sed "s@.*tip/auto-branches/@@"
+    git ls-tree  tip -- .tip/auto-branches/ | sed "s@.*tip/auto-branches/@@"
 }
 
 get_auto_branches_no_latest() {
@@ -19,7 +19,7 @@ get_auto_branches_no_latest() {
 
 get_all_auto_branches() {
 
-    AB=`git-ls-tree  tip -- .tip/auto-branches/ | sed "s@.*tip/auto-branches/@@"`
+    AB=`git ls-tree  tip -- .tip/auto-branches/ | sed "s@.*tip/auto-branches/@@"`
     for B in $AB
     do
 	echo $B
@@ -28,12 +28,12 @@ get_all_auto_branches() {
 }
 
 get_topic_branches() {
-    git-branch | grep -vE 'master|linus|linux-next|tmp|auto-' | cut -c3-
+    git branch | grep -vE 'master|linus|linux-next|tmp|auto-' | cut -c3-
 }
 
 get_all_branches() {
-    (git-branch | grep -vE 'master|linus|linux-next|tmp|auto-' | cut -c3-
-    git-branch | grep -E 'auto.*base' | cut -c3- ) | sort | uniq
+    (git branch | grep -vE 'master|linus|linux-next|tmp|auto-' | cut -c3-
+    git branch | grep -E 'auto.*base' | cut -c3- ) | sort | uniq
 }
 
 check_master() {
@@ -48,8 +48,8 @@ check_master() {
 
 abort_merge() {
     echo "merge aborted manually!";
-    git-reset --hard;
-    git-checkout master; 
+    git reset --hard;
+    git checkout master; 
     exit -1;
 }
 
@@ -58,18 +58,18 @@ get_date_for_tag() {
 }
 
 get_topic_reference() {
-    git-merge-base $1 linus
+    git merge-base $1 linus
 }
 
 get_linux_next_branches() {
-    local NT=`git-ls-tree linux-next -- Next/Trees | sed -e "s/.*blob //" -e "s/\ *Next.*//"`
-    git-show $NT | grep "linux-2.6-tip.git" | sed "s/.*#//"
+    local NT=`git ls-tree linux-next -- Next/Trees | sed -e "s/.*blob //" -e "s/\ *Next.*//"`
+    git show $NT | grep "linux-2.6-tip.git" | sed "s/.*#//"
 }
 
 get_auto_merged_topics() {
     for B in $@
     do
-	local TB=`git-ls-tree tip -- .tip/auto-branches/$B | sed -e "s/.*blob //" -e "s/\ *.tip.*//"`
-	git-show $TB | sed -e "s/#.*//" -e "/^ *$/d"
+	local TB=`git ls-tree tip -- .tip/auto-branches/$B | sed -e "s/.*blob //" -e "s/\ *.tip.*//"`
+	git show $TB | sed -e "s/#.*//" -e "/^ *$/d"
     done
 }

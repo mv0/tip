@@ -1,5 +1,5 @@
 
-git-checkout . || { echo error; exit -1; }
+git checkout . || { echo error; exit -1; }
 
 while :; do
   quilt next >/dev/null 2>/dev/null || {
@@ -9,7 +9,7 @@ while :; do
   echo "next patch to process: "`quilt next`
   [ -z "$1" ] && read -p "apply it and remove from series file?"
   rm -rf .pc
-  git-am `quilt next` || exit -1
+  git am `quilt next` || exit -1
 
   #
   # Remove the next patch from Quilt but leave some trace of
@@ -17,7 +17,7 @@ while :; do
   #
   quilt next >/dev/null 2>/dev/null && {
 	PATCH_NAME=$(q next | cut -d/ -f2-)
-	CURR_BRANCH=$(git-branch | grep ^\* | cut -c3-)
+	CURR_BRANCH=$(git branch | grep ^\* | cut -c3-)
 	echo "removing $PATCH_NAME"
 	sed -i "s/^$PATCH_NAME$/# in -tip now: $PATCH_NAME/g" patches/series
   }

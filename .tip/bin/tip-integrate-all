@@ -14,7 +14,7 @@ done
 tip-integrate auto-generic-ipi-next || { echo "Integration of auto-generic-ipi-next failed"; exit -1; }
 tip-integrate auto-latest || { echo "Integration of auto-latest failed"; exit -1; }
 
-git-checkout auto-latest
+git checkout auto-latest
 git branch -f master
 
 #
@@ -31,19 +31,19 @@ git merge out-of-tree || {
 	echo running subshell - type "exit" when resolved
 	$SHELL || abort_merge
 
-	NCOM=`git-ls-files -u`
+	NCOM=`git ls-files -u`
 	if [ ! -z "$NCOM" ]
 	then
 	    echo "Merge was not committed! Fixing it up"
-	    git-add $(git-ls-files -u | cut -f2 | sort | uniq)
-	    git-commit -n -s || abort_merge;
+	    git add $(git ls-files -u | cut -f2 | sort | uniq)
+	    git commit -n -s || abort_merge;
 	fi
 }
 
 D=`get_date_for_tag`
 
 # save the new master head:
-git-tag -m "auto-latest update: $D" tip-history-$D master ||
+git tag -m "auto-latest update: $D" tip-history-$D master ||
 					   { echo error6; exit -1; }
 
 #

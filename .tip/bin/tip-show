@@ -3,11 +3,11 @@
 
 for N in $(get_all_branches); do
 
-  ITEMS=$(git-rev-list --reverse linus..$N -- $@)
+  ITEMS=$(git rev-list --reverse linus..$N -- $@)
 
   for M in $ITEMS; do
     echo "$N: $M"
-    git-show --pretty=email --no-merges $M | cat
+    git show --pretty=email --no-merges $M | cat
   done
 
 done

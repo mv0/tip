@@ -10,12 +10,12 @@
 check_master
 
 # Check for linux-next
-LNEXT_REM=$(git-config --get branch.linux-next.remote);
+LNEXT_REM=$(git config --get branch.linux-next.remote);
 
 [ -z "$LNEXT_REM" ] && {
     echo "linux-next branch missing"
     echo "Setting it up for you"
-    git-remote add -t master -f linux-next-git git://git.kernel.org/pub/scm/linux/kernel/git/sfr/linux-next.git
+    git remote add -t master -f linux-next-git git://git.kernel.org/pub/scm/linux/kernel/git/sfr/linux-next.git
     git branch linux-next linux-next-git/master || {
 	echo "creating linux-next branch failed"
 	echo "please fix manually"
@@ -42,7 +42,7 @@ echo ""
 echo "Checking linux-next"
 
 # Check which auto-branches are in linux-next
-NEXT=$(git-ls-remote -h $LNEXT_REM | grep master | sed -e "s/\t/:/" -e "s/\:.*//")
+NEXT=$(git ls-remote -h $LNEXT_REM | grep master | sed -e "s/\t/:/" -e "s/\:.*//")
 LNXT=$(git show linux-next-git/master 2>/dev/null | head -n1 | sed "s/commit //")
 [ "$NEXT" != "$LNXT" ] && {
     echo "Updating to linux-next latest"
@@ -65,7 +65,7 @@ TCNT=0
 TNXT=0
 for B in $AB
 do
-    BASE=$(git-merge-base $B linux-next)
+    BASE=$(git merge-base $B linux-next)
     NC=$(git log $BASE"..linux-next" --no-merges --pretty=format:"%H")
     BC=$(git log $B"-base.."$B --no-merges --pretty=format:"%H")
 

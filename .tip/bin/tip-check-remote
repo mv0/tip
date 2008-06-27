@@ -1,6 +1,6 @@
 #!/bin/sh
 
-HEADS=`git-ls-remote -h origin | sed "s/\t/:/"`
+HEADS=`git ls-remote -h origin | sed "s/\t/:/"`
 
 UPDATE=0
 for H in $HEADS

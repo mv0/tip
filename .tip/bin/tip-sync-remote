@@ -27,16 +27,16 @@ fi
 
 if [ ! -f .git/tip-sync-remote-cache ]
 then
-    BS=`git-branch | grep -vE " linus|tmp" | cut -c3-`
+    BS=`git branch | grep -vE " linus|tmp" | cut -c3-`
     for B in $BS
     do
-	SHA=`git-rev-list origin/$B --max-count=1`
+	SHA=`git rev-list origin/$B --max-count=1`
 	echo $SHA":"$B >>.git/tip-sync-remote-cache
     done
 fi
 
 echo "Fetching updates from origin"
-git-fetch || exit 1;
+git fetch || exit 1;
 
 BS=`get_topic_branches`
 # Add tip as well
@@ -49,7 +49,7 @@ do
     RH=`echo $RH | sed "s/\:.*//"`
 
     # Get and check the new remote head"
-    NRH=`git-rev-list origin/$B --max-count=1`
+    NRH=`git rev-list origin/$B --max-count=1`
     if [ "$RH" = "$NRH" ]
     then
 	echo "Branch up to date: "$B
@@ -57,17 +57,17 @@ do
     fi
 
     echo "Updating $B"
-    git-checkout $B || exit 1;
+    git checkout $B || exit 1;
 
     # Now check whether we have local modifications
-    LH=`git-rev-list $B --max-count=1`
+    LH=`git rev-list $B --max-count=1`
     if [ "$RH" != "$LH" ]
     then
 	echo "Branch "$B" has local modifications"
 	echo "Rebasing local modifications to remote"
-	CMD=git-rebase
+	CMD=git rebase
     else
-	CMD=git-merge
+	CMD=git merge
     fi
 
     $CMD origin/$B || {
@@ -79,7 +79,7 @@ do
 	    
 	    $SHELL
 
-	    MOD=`git-ls-files -d -m`
+	    MOD=`git ls-files -d -m`
 	    if [ ! -z "$MOD" ]
 	    then
 		echo "You did not resolve the conflict"
@@ -88,12 +88,12 @@ do
 		continue
 	    fi
 
-	    NCOM=`git-ls-files -u`
+	    NCOM=`git ls-files -u`
 	    if [ ! -z "$NCOM" ]
 	    then
 		echo "Merge was not committed! Fixing it up"
-		git-add $(git-ls-files -u | cut -f2 | sort | uniq)
-		git-commit -s || continue;
+		git add $(git ls-files -u | cut -f2 | sort | uniq)
+		git commit -s || continue;
 	    fi
 	    break;
 	done
@@ -108,25 +108,25 @@ BS=$BS" master"
 
 for B in $BS
 do
-    RH=`git-rev-list $B --max-count=1`
+    RH=`git rev-list $B --max-count=1`
     # Get and check the new remote head"
-    NRH=`git-rev-list origin/$B --max-count=1`
+    NRH=`git rev-list origin/$B --max-count=1`
     if [ "$RH" = "$NRH" ]
     then
 	echo "Branch up to date: "$B
     else
 	echo "Updating $B"
-	git-checkout $B || exit 1;
-	BASE=`git-merge-base $B origin/$B`
-	git-reset --hard $BASE
-	git-merge origin/$B
+	git checkout $B || exit 1;
+	BASE=`git merge-base $B origin/$B`
+	git reset --hard $BASE
+	git merge origin/$B
     fi
 done 
 
 rm .git/tip-sync-remote-cache
 
 # switch back to master again
-git-checkout master
+git checkout master
 
 # create missing local branches
 tip-create-local-branches.sh

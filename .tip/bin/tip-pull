@@ -7,4 +7,4 @@
 
 check_master
 
-git-pull || exit 1;
+git pull || exit 1;

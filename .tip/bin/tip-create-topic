@@ -11,7 +11,7 @@ then
 fi
 
 # create a new branch from linus
-git-branch $1 linus
+git branch $1 linus
 
 # push it out
 git checkout $1

@@ -1,10 +1,10 @@
 
-git-checkout tip || { echo error1; exit -1; }
-git-fetch origin
-git-merge origin/tip
+git checkout tip || { echo error1; exit -1; }
+git fetch origin
+git merge origin/tip
 
 cp -au .tip/bin/* ~/bin/tip/
 
-git-checkout master || { echo error2; exit -1; }
+git checkout master || { echo error2; exit -1; }
 
 echo "-tip tool sync done!"

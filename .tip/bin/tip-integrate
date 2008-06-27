@@ -9,51 +9,51 @@ check_master
 
 BRANCH=$1
 
-git-checkout tip
+git checkout tip
 if [ ! -f  .tip/auto-branches/$BRANCH ]
 then
     echo "usage: tip-integrate integration-branch"
     echo "available integration branches:"
     BS=`get_auto_branches`
     for B in $BS; do echo "    $B"; done
-    git-checkout master
+    git checkout master
     exit 1;
 fi
 
 # Read the branch list
-git-checkout tip
+git checkout tip
 MB=`cat .tip/auto-branches/$BRANCH | grep -v "^[# \n]"`
 # switch back to linus
-git-checkout linus
+git checkout linus
 # Blow away the existing integration branches and create a new one
-git-branch -f $BRANCH-base
-git-branch -f $BRANCH
+git branch -f $BRANCH-base
+git branch -f $BRANCH
 # Build the new integration branch
-git-checkout $BRANCH
+git checkout $BRANCH
 
 for B in $MB
 do
     echo "Merging $B"
-    git-merge $B 2>.merge.log >.merge.log0 || {
+    git merge $B 2>.merge.log >.merge.log0 || {
 
 	cat .merge.log
         cat .merge.log0
 
-	# stupid special for lack of git-rm support in git-rerere:
-        grep -q 'arch/x86/kernel/nmi_32.c deleted in x86/nmi and modified in HEAD' .merge.log0 && git-rm arch/x86/kernel/nmi_32.c
-        grep -q 'include/asm-x86/hw_irq_32.h deleted in HEAD and modified in generic-ipi' .merge.log0 && git-rm arch/x86/kernel/i8259_64.c arch/x86/kernel/nmi_64.c include/asm-x86/hw_irq_32.h include/asm-x86/hw_irq_64.h include/asm-x86/mach-default/irq_vectors.h include/asm-x86/mach-voyager/irq_vectors.h
+	# stupid special for lack of git rm support in git rerere:
+        grep -q 'arch/x86/kernel/nmi_32.c deleted in x86/nmi and modified in HEAD' .merge.log0 && git rm arch/x86/kernel/nmi_32.c
+        grep -q 'include/asm-x86/hw_irq_32.h deleted in HEAD and modified in generic-ipi' .merge.log0 && git rm arch/x86/kernel/i8259_64.c arch/x86/kernel/nmi_64.c include/asm-x86/hw_irq_32.h include/asm-x86/hw_irq_64.h include/asm-x86/mach-default/irq_vectors.h include/asm-x86/mach-voyager/irq_vectors.h
 
 	NR_AUTO=$(grep -E '^Resolved .* using previous resolution.$' .merge.log | wc -l)
-	NR_PENDING=$(git-ls-files -u | cut -f2 | uniq | wc -l)
+	NR_PENDING=$(git ls-files -u | cut -f2 | uniq | wc -l)
 
 	[ "$NR_AUTO" = "$NR_PENDING" ] && {
             echo "Found $NR_AUTO auto-merged files - committing them."
-	    git-add $(git-ls-files -u | cut -f2 | sort | uniq)
-	    git-commit -n -s -m "manual merge of $B" || abort_merge;
+	    git add $(git ls-files -u | cut -f2 | sort | uniq)
+	    git commit -n -s -m "manual merge of $B" || abort_merge;
             continue;
         }
 
-	git-add $(cat .merge.log | grep "previous resolution" | cut -d' ' -f2 | cut -d\' -f2)
+	git add $(cat .merge.log | grep "previous resolution" | cut -d' ' -f2 | cut -d\' -f2)
 
 	echo
 	echo Merging $B into $BRANCH failed
@@ -61,21 +61,21 @@ do
 	echo
 	echo running subshell - type "exit" when resolved
 	echo conflicting files:
-	git-ls-files -u | cut -f2 | uniq
+	git ls-files -u | cut -f2 | uniq
 
 	$SHELL || abort_merge
 
-	NCOM=`git-ls-files -u`
+	NCOM=`git ls-files -u`
 	if [ ! -z "$NCOM" ]
 	then
 	    echo "Merge was not committed! Fixing it up"
-	    git-add $(git-ls-files -u | cut -f2 | sort | uniq)
-	    git-commit -n -s || abort_merge;
+	    git add $(git ls-files -u | cut -f2 | sort | uniq)
+	    git commit -n -s || abort_merge;
 	fi
     }
 done
 
 # switch back to master again
-git-checkout master
+git checkout master
 
 echo "integration of $1 done."

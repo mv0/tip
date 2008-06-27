@@ -8,9 +8,9 @@
 check_master
 
 # Check whether linus has updates
-LREM=`git-config --get branch.linus.remote`
-SHAR=`git-ls-remote -h $LREM | grep master | sed "s/\t.*//"`
-SHAL=`git-rev-list $LREM/master --max-count=1`
+LREM=`git config --get branch.linus.remote`
+SHAR=`git ls-remote -h $LREM | grep master | sed "s/\t.*//"`
+SHAL=`git rev-list $LREM/master --max-count=1`
 LINUS=0
 
 if [ "$SHAR" != "$SHAL" ]
@@ -20,9 +20,9 @@ then
     if [ "$A" != "N" -a "$A" != "n" ]
     then
 	echo "pulling the updates"
-	git-checkout linus
-	git-pull || exit 1;
-	git-checkout master
+	git checkout linus
+	git pull || exit 1;
+	git checkout master
 	LINUS=1
     fi
 else
@@ -41,21 +41,21 @@ BS=`get_topic_branches`
 
 for B in $BS
 do
-    git-checkout $B
+    git checkout $B
 
     # Get the local head
-    LH=`git-rev-list $B --max-count=1`
+    LH=`git rev-list $B --max-count=1`
 
     # Get the reference of the last linus merge/rebase
     TREF=`get_topic_reference $B`
 
     if [ -z "$TREF" ]
     then
-	echo "No topic reference found. Using git-merge-base"
-	MBASE=`git-merge-base linus HEAD`
+	echo "No topic reference found. Using git merge-base"
+	MBASE=`git merge-base linus HEAD`
 	TD=`get_date_for_tag`
 	TB=`echo $B | sed "s@/@-@"`
-	git-tag "tip-"$TB"-"$TD $MBASE
+	git tag "tip-"$TB"-"$TD $MBASE
 	TREF="tip-"$TB"-"$TD
     fi
 
@@ -70,7 +70,7 @@ do
     fi
 
     # Run a test merge
-    git-merge -n linus
+    git merge -n linus
     RES=$?
     
     if [ $RES -eq 0 ]
@@ -84,7 +84,7 @@ do
 	    # Tag the merge
 	    TD=`get_date_for_tag`
 	    TB=`echo $B | sed "s@/@-@"`
-	    git-tag -f "tip-"$TB"-"$TD
+	    git tag -f "tip-"$TB"-"$TD
 	fi
     else
 	while true
@@ -94,7 +94,7 @@ do
 	    echo running subshell - type "exit" when resolved
 	    $SHELL
 
-	    MOD=`git-ls-files -d -m -u`
+	    MOD=`git ls-files -d -m -u`
 	    if [ ! -z "$MOD" ]
 	    then
 		echo "You did not resolve the conflict"
@@ -102,13 +102,13 @@ do
 		read -p "Cancel with ^C. Hit return to drop back in a subshell" A
 	    else
 		# Get the local head
-		NH=`git-rev-list $B --max-count=1`
+		NH=`git rev-list $B --max-count=1`
 		if [ "$LH" != "$NH" ]
 		then
 		    # Tag the merge
 		    TD=`get_date_for_tag`
 		    TB=`echo $B | sed "s@/@-@"`
-		    git-tag -f "tip-"$TB"-"$TD
+		    git tag -f "tip-"$TB"-"$TD
 		fi
 		break;
 	    fi
@@ -117,4 +117,4 @@ do
 done
 
 # switch back to master again
-git-checkout master
+git checkout master
