@@ -59,6 +59,6 @@ x86/nmi-watchdog
 x86/xen-64bit
 
 x86/crashdump
-x86/merge-setup
+x86/unify-setup
 x86/amd-iommu
 
