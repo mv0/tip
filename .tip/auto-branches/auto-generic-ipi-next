@@ -13,3 +13,4 @@ auto-stackprotector-next
 
 # Jens's changes:
 generic-ipi
+generic-ipi-mergefixups
