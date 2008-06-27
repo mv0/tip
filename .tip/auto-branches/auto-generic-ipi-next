@@ -1,0 +1,15 @@
+auto-sched-next
+auto-x86-next
+auto-ftrace-next
+tracing/mmiotrace-mergefixups
+auto-timers-next
+auto-genirq-next
+auto-core-next
+auto-cpus4096-next
+# Fixup cpus4096 merge
+tracing/ftrace-mergefixups
+auto-safe-poison-pointers-next
+auto-stackprotector-next
+
+# Jens's changes:
+generic-ipi
