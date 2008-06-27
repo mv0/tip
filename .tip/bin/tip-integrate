@@ -41,6 +41,7 @@ do
 
 	# stupid special for lack of git-rm support in git-rerere:
         grep -q 'arch/x86/kernel/nmi_32.c deleted in x86/nmi and modified in HEAD' .merge.log0 && git-rm arch/x86/kernel/nmi_32.c
+        grep -q 'include/asm-x86/hw_irq_32.h deleted in HEAD and modified in generic-ipi' .merge.log0 && git-rm arch/x86/kernel/i8259_64.c arch/x86/kernel/nmi_64.c include/asm-x86/hw_irq_32.h include/asm-x86/hw_irq_64.h include/asm-x86/mach-default/irq_vectors.h include/asm-x86/mach-voyager/irq_vectors.h
 
 	NR_AUTO=$(grep -E '^Resolved .* using previous resolution.$' .merge.log | wc -l)
 	NR_PENDING=$(git-ls-files -u | cut -f2 | uniq | wc -l)
@@ -52,11 +53,16 @@ do
             continue;
         }
 
+	git-add $(cat .merge.log | grep "previous resolution" | cut -d' ' -f2 | cut -d\' -f2)
+
 	echo
 	echo Merging $B into $BRANCH failed
 	echo merge conflict - run tip-mergetool
 	echo
 	echo running subshell - type "exit" when resolved
+	echo conflicting files:
+	git-ls-files -u | cut -f2 | uniq
+
 	$SHELL || abort_merge
 
 	NCOM=`git-ls-files -u`
