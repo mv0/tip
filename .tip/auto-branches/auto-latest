@@ -47,4 +47,6 @@ build
 
 # needs Roland ack:
 x86/pebs
+# needs Len to pull:
+x86/acpi-rename-acpi_nmi
 
