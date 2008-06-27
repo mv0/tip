@@ -11,6 +11,7 @@ do
     tip-integrate $B || { echo "Integration of "$B" failed"; exit -1; }
 done
 
+tip-integrate auto-generic-ipi-next || { echo "Integration of auto-generic-ipi-next failed"; exit -1; }
 tip-integrate auto-latest || { echo "Integration of auto-latest failed"; exit -1; }
 
 git-checkout auto-latest

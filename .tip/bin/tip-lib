@@ -14,7 +14,7 @@ get_auto_branches() {
 
 get_auto_branches_no_latest() {
 
-    get_auto_branches | grep -v "auto-latest"
+    get_auto_branches | grep -vE "auto-latest|auto-generic-ipi-next"
 }
 
 get_all_auto_branches() {
