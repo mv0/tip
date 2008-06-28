@@ -65,9 +65,9 @@ do
     then
 	echo "Branch "$B" has local modifications"
 	echo "Rebasing local modifications to remote"
-	CMD=git rebase
+	CMD='git rebase'
     else
-	CMD=git merge
+	CMD='git merge'
     fi
 
     $CMD origin/$B || {
