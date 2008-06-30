@@ -1,0 +1,4 @@
+
+git-show origin/master:$1 > .tmp
+diff -up $1 .tmp | less
+
