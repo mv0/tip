@@ -60,5 +60,4 @@ x86/xen-64bit
 
 x86/crashdump
 x86/unify-setup
-x86/amd-iommu
 

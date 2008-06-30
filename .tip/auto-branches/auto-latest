@@ -1,6 +1,9 @@
 auto-sched-next
 auto-x86-next
 
+# still cooking:
+x86/amd-iommu
+
 auto-ftrace-next
 # Fixup RCU merge
 tracing/mmiotrace-mergefixups
