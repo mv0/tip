@@ -23,22 +23,7 @@ git branch -f master
 #
 git checkout master
 
-git merge out-of-tree || {
-	echo
-	echo Merging out-of-tree into master failed
-	echo merge conflict - run tip-mergetool
-	echo
-	echo running subshell - type "exit" when resolved
-	$SHELL || abort_merge
-
-	NCOM=`git ls-files -u`
-	if [ ! -z "$NCOM" ]
-	then
-	    echo "Merge was not committed! Fixing it up"
-	    git add $(git ls-files -u | cut -f2 | sort | uniq)
-	    git commit -n -s || abort_merge;
-	fi
-}
+tip-merge out-of-tree || { echo 'merge of out-of-tree failed'; exit -1; }
 
 D=`get_date_for_tag`
 
