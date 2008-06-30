@@ -55,3 +55,7 @@ x86/acpi-rename-acpi_nmi
 
 # SMP IPI speedups from Jens:
 # generic-ipi
+
+# waiting for akpm ack:
+core/generic-dma-coherent
+
