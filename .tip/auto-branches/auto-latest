@@ -26,9 +26,6 @@ kmemcheck
 
 pci-for-jesse
 
-# experimental x86 branches not for linux-next yet:
-x86/uv
-
 # branched off x86/apic cded44424013defddadac700dcefe72a68ad9173:
 x86/pci-ioapic-boot-irq-quirks
 # waiting for akpm's ack to put into auto-x86-next:
