@@ -64,3 +64,4 @@ x86/unify-setup
 # branched off a previous version of auto-x86-next, f49a759dc
 # x86/unify-lib
 x86/debug
+x86/ptrace
