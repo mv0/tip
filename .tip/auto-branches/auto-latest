@@ -20,7 +20,13 @@ tracing/ftrace-mergefixups
 
 auto-safe-poison-pointers-next
 
+# to get its own -next branch:
+core/percpu-zerobased
+
 auto-stackprotector-next
+
+# core/percpu-zerobased merge fixups against stackprotector:
+core/percpu-zerobased-mergefixups
 
 kmemcheck
 
