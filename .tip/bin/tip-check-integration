@@ -47,7 +47,7 @@ LNXT=$(git show linux-next-git/master 2>/dev/null | head -n1 | sed "s/commit //"
 [ "$NEXT" != "$LNXT" ] && {
     echo "Updating to linux-next latest"
     git checkout linux-next 
-    git pull
+    git pull --no-tags
     git checkout master
 }
 
