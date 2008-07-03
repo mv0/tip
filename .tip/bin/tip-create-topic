@@ -14,10 +14,10 @@ fi
 git branch $1 linus
 
 # push it out
-git checkout $1
-tip-push-current
+git checkout $1 || { echo 'hm?'; exit -1; }
+tip-push-current || { echo 'hm?'; exit -1; }
 
-git checkout master
+git checkout master || { echo 'hm?'; exit -1; }
 
 # remove it
 git branch -D $1
