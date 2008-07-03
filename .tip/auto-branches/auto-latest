@@ -62,3 +62,5 @@ x86/acpi-rename-acpi_nmi
 # waiting for akpm ack:
 core/generic-dma-coherent
 
+# to be pulled by Greg in v2.6.27 once the dependent x86 bits are upstream:
+sysfs/firmware-mmap
