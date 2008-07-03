@@ -66,3 +66,5 @@ x86/unify-setup
 x86/debug
 x86/ptrace
 x86/uv
+
+x86/audit-speedup
