@@ -1,8 +1,6 @@
 auto-sched-next
 auto-x86-next
 
-# still cooking:
-x86/amd-iommu
 
 auto-ftrace-next
 # Fixup RCU merge
@@ -64,3 +62,5 @@ core/generic-dma-coherent
 
 # to be pulled by Greg in v2.6.27 once the dependent x86 bits are upstream:
 sysfs/firmware-mmap
+
+x86/audit-speedup

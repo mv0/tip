@@ -67,4 +67,6 @@ x86/debug
 x86/ptrace
 x86/uv
 
-x86/audit-speedup
+# still cooking:
+x86/amd-iommu
+
