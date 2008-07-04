@@ -67,6 +67,6 @@ x86/debug
 x86/ptrace
 x86/uv
 
-# still cooking:
 x86/amd-iommu
 
+x86/uv-v2
