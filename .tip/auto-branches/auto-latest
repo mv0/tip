@@ -40,11 +40,11 @@ x86/mm-debug
 x86/mm-remove-arch-get-ram-range
 
 tracing/sched_markers
-#tracing/markers
-#tracing/textedit
-#tracing/nmisafe
-#tracing/stopmachine-allcpus
-#tracing/immediates
+tracing/markers
+tracing/textedit
+tracing/nmisafe
+tracing/stopmachine-allcpus
+tracing/immediates
 
 # core build system / linkage changes:
 build
