@@ -19,12 +19,12 @@ tracing/ftrace-mergefixups
 auto-safe-poison-pointers-next
 
 # to get its own -next branch:
-core/percpu-zerobased
+# test problems: core/percpu-zerobased
 
 auto-stackprotector-next
 
 # core/percpu-zerobased merge fixups against stackprotector:
-core/percpu-zerobased-mergefixups
+# core/percpu-zerobased-mergefixups
 
 kmemcheck
 
@@ -52,7 +52,7 @@ build
 # needs Roland ack:
 x86/pebs
 # needs Len to pull:
-x86/acpi-rename-acpi_nmi
+# lets do this later: x86/acpi-rename-acpi_nmi
 
 # SMP IPI speedups from Jens:
 # generic-ipi
@@ -63,4 +63,4 @@ core/generic-dma-coherent
 # to be pulled by Greg in v2.6.27 once the dependent x86 bits are upstream:
 sysfs/firmware-mmap
 
-x86/audit-speedup
+#lots of conflicts: x86/audit-speedup
