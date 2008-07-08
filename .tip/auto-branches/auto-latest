@@ -31,13 +31,13 @@ kmemcheck
 pci-for-jesse
 
 # branched off x86/apic cded44424013defddadac700dcefe72a68ad9173:
-x86/pci-ioapic-boot-irq-quirks
+## REBASEME: x86/pci-ioapic-boot-irq-quirks
 # waiting for akpm's ack to put into auto-x86-next:
 # early crash with: http://redhat.com/~mingo/misc/config-Wed_Jun_18_14_51_18_CEST_2008.bad - hm, seems fixed meanwhile
-x86/mm-debug
+## REBASEME: x86/mm-debug
 
 # waiting for akpm's ack. Based off x86/mpparse, commit 9920a004626
-x86/mm-remove-arch-get-ram-range
+## REBASEME: x86/mm-remove-arch-get-ram-range
 
 tracing/sched_markers
 #tracing/markers
@@ -61,6 +61,6 @@ auto-generic-ipi-next
 core/generic-dma-coherent
 
 # to be pulled by Greg in v2.6.27 once the dependent x86 bits are upstream:
-sysfs/firmware-mmap
+# REBASEME: sysfs/firmware-mmap
 
 #lots of conflicts: x86/audit-speedup
