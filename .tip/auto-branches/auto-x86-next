@@ -57,3 +57,4 @@ x86/ptrace
 x86/uv
 
 x86/amd-iommu
+x86/modules
