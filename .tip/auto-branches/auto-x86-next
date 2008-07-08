@@ -1,7 +1,11 @@
 #
 # Integration rule for x86-upstream-devel
 #
+#
 x86/urgent
+
+x86/core
+
 x86/numa-fixes
 
 # undoes a commit from x86/urgent, to make the x86/apic merge cleaner:
@@ -41,22 +45,10 @@ x86/delay
 # PEBS disabled - needs ack from Roland
 #x86/pebs
 
-# NOTE: this is branched off a previous version of auto-x86-next, 55e191ba6
-x86/smpboot
-
 x86/idle
 x86/fixmap
 
-# NOTE: this is branched off of previous versions of x86/mpparse, x86/cpu, etc.
-x86/setup-memory
-
 x86/oprofile
-
-# NOTE: branched off a specific version of x86/nmi + x86/apic:
-x86/nmi-watchdog
-
-x86/crashdump
-x86/unify-setup
 
 # branched off a previous version of auto-x86-next, f49a759dc
 # x86/unify-lib
@@ -65,9 +57,3 @@ x86/ptrace
 x86/uv
 
 x86/amd-iommu
-
-x86/uv-v2
-
-# NOTE: branched off a previous version of auto-x86-next, 6866105b4
-x86/xen-64bit
-
