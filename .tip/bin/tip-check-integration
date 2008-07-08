@@ -46,9 +46,10 @@ NEXT=$(git ls-remote -h $LNEXT_REM | grep master | sed -e "s/\t/:/" -e "s/\:.*//
 LNXT=$(git show linux-next-git/master 2>/dev/null | head -n1 | sed "s/commit //")
 [ "$NEXT" != "$LNXT" ] && {
     echo "Updating to linux-next latest"
-    git checkout linux-next 
-    git pull --no-tags
-    git checkout master
+    git checkout linux-next            || exit -1
+    git fetch --no-tags                || exit -1
+    git reset --hard linux-next/master || exit -1
+    git checkout master                || exit -1
 }
 
 NEXT_BRANCHES=$(get_linux_next_branches)
