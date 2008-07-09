@@ -64,3 +64,6 @@ core/generic-dma-coherent
 sysfs/firmware-mmap
 
 #lots of conflicts: x86/audit-speedup
+
+core/warn-API
+
