@@ -1,4 +1,5 @@
 timers/clockevents
+timers/clocksource
 timers/posixtimers
 timers/nohz
 timers/hpet
