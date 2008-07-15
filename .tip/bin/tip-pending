@@ -7,7 +7,7 @@ echo ------------------------------------------------
 NR=0
 TOTAL=0
 SUM=0
-for B in $(tip-topic-branches); do
+for B in $(tip-topic-branches | grep -vw tip); do
  C1=$(git-log-line --no-merges linus..$B | wc -l)
 # C2=$(git-log-line --no-merges linux-next..$B | wc -l)
 
