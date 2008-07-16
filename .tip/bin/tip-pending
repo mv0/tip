@@ -7,7 +7,7 @@ echo ------------------------------------------------
 NR=0
 TOTAL=0
 SUM=0
-for B in $(tip-topic-branches | grep -vw tip); do
+for B in $(tip-topic-branches); do
  C1=$(git-log-line --no-merges linus..$B | wc -l)
 # C2=$(git-log-line --no-merges linux-next..$B | wc -l)
 
@@ -25,3 +25,5 @@ printf "total topics:    %4d\n" $TOTAL
 printf "pending topics:  %4d\n" $NR
 printf "pending commits: %4d\n" $SUM
 
+P=$(for N in $(tip-topic-branches); do git-log-line linus..$N; done | sort | uniq | wc -l)
+printf "unique commits:  %4d\n" $P
