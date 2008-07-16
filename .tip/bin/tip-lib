@@ -28,7 +28,7 @@ get_all_auto_branches() {
 }
 
 get_topic_branches() {
-    git branch | grep -vE 'master|linus|linux-next|tmp|auto-' | cut -c3-
+    git branch | grep -vE 'master|linus|linux-next|tmp|auto-|no branch|\<tip\>' | cut -c3-
 }
 
 get_all_branches() {

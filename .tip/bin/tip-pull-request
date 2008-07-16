@@ -9,6 +9,10 @@ HEAD=$(tip-curr | cut -d/ -f2- | cut -d' ' -f1)
 BRANCH=${1:-$HEAD}
 BASE=$(git-merge-base $BRANCH linus)
 
+__tip-pull-request $BRANCH $BASE
+
+exit
+
 git-branch | grep -qw $BRANCH || { echo "$BRANCH does not exist!"; exit -1; }
 
 echo "generating pull request mail for $HEAD:"

@@ -16,8 +16,7 @@ for N in $(tip-topic-branches | grep urgent | grep -v undo | sed 's/\/urgent$//g
       EXIT=-1
       continue
     }
-    echo "branch $BRANCH already upstream, recreating it in 5 seconds":
-    sleep 5
+    echo "branch $BRANCH already upstream, recreating it":
     git-branch -f $BRANCH $N/urgent
   }
 
