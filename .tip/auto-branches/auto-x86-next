@@ -64,3 +64,4 @@ x86/generalize-visws
 x86/xen-64bit
 x86/paravirt-spinlocks
 x86/kprobes
+x86/header-guards
