@@ -43,7 +43,7 @@
 #include <asm/uaccess.h>
 
 #ifdef CONFIG_PPC_CPM_NEW_BINDING
-#include <asm/of_platform.h>
+#include <linux/of_platform.h>
 #endif
 
 #include "fs_enet.h"
@@ -1093,7 +1093,7 @@ err:
 		if (registered)
 			unregister_netdev(ndev);
 
-		if (fep != NULL) {
+		if (fep && fep->ops) {
 			(*fep->ops->free_bd)(ndev);
 			(*fep->ops->cleanup_data)(ndev);
 		}
