@@ -68,3 +68,5 @@ x86/kprobes
 #x86/header-guards
 x86/step
 x86/x2apic
+xen-64bit
+x86/paravirt-spinlocks

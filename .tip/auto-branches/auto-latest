@@ -66,4 +66,6 @@ sysfs/firmware-mmap
 #lots of conflicts: x86/audit-speedup
 
 core/warn-API
+tracing/nmisafe
+fastboot
 
