@@ -5,6 +5,7 @@ git merge origin/tip
 
 cp -au ~/bin/tip/* .tip/bin/
 
+git add .tip/bin/*
 git commit .tip/bin/* || { echo error1; exit -1; }
 
 git checkout master || { echo error2; exit -1; }
