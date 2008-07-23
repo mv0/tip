@@ -1,0 +1,30 @@
+#!/bin/bash
+
+usage () {
+  echo 'usage: tip-fastmerge <refspec>..'
+  exit -1
+}
+
+[ $# = 0 ] && usage
+
+BRANCH=$1
+
+MERGECACHE=.git/mergecache
+
+[ ! -d $MERGECACHE ] && { mkdir $MERGECACHE || usage; }
+
+HEAD_SHA1=$(git-log -1 --pretty=format:"%H")
+BRANCH_SHA1=$(git-log -1 --pretty=format:"%H" $BRANCH)
+
+CACHE=$MERGECACHE/$HEAD_SHA1/$BRANCH_SHA1
+
+[ -f "$CACHE" -a "$CACHE" -nt .git/refs/heads/$BRANCH_SHA1 ] && {
+  echo "merge-cache hit on HEAD <= $1"
+  exit 0
+}
+
+git-merge $1 && {
+  mkdir -p $(dirname $CACHE)
+  touch $CACHE
+}
+
