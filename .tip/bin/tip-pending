@@ -1,5 +1,11 @@
 #!/bin/bash
 
+print_sum () {
+  printf "  total topics:    %4d\n" $TOTAL
+  printf "  pending topics:  %4d\n" $NR
+  printf "  pending commits: %4d\n" $SUM
+}
+
 echo
 echo "  topic                              #commits"
 echo "  -------------------------------------------"
@@ -25,7 +31,7 @@ done
 
 echo "  ---------------------"
 
-[ "$#" != "0" ] && exit 0
+[ "$#" != "0" ] && { print_sum; exit 0; }
 
 for B in $(tip-auto-branches | grep -vw auto-latest ); do
  C1=$(git-log-line --no-merges linus..$B | wc -l)
@@ -63,9 +69,7 @@ done
 
 echo "  ---------------------"
 
-printf "  total topics:    %4d\n" $TOTAL
-printf "  pending topics:  %4d\n" $NR
-printf "  pending commits: %4d\n" $SUM
+print_sum
 
-P=$(for N in $(tip-topic-branches); do git-log-line linus..$N; done | sort | uniq | wc -l)
+P=$(for N in $BRANCHES; do git-log-line linus..$N; done | sort | uniq | wc -l)
 printf "  unique commits:  %4d\n" $P
