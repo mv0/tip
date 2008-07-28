@@ -72,3 +72,4 @@ xen-64bit
 x86/paravirt-spinlocks
 x86/reboot
 x86/spinlocks
+x86/tracehook
