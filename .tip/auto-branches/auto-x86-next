@@ -74,3 +74,9 @@ x86/reboot
 x86/spinlocks
 x86/tracehook
 x86/crashdump
+
+x86/doc
+x86/early-printk
+x86/microcode
+x86/paravirt
+
