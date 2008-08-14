@@ -69,3 +69,5 @@ core/warn-API
 tracing/nmisafe
 fastboot
 
+auto-oprofile-next
+
