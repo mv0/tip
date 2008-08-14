@@ -4,7 +4,7 @@ auto-x86-next
 
 auto-ftrace-next
 # Fixup RCU merge
-tracing/mmiotrace-mergefixups
+# tracing/mmiotrace-mergefixups
 
 auto-timers-next
 auto-genirq-next
@@ -12,9 +12,6 @@ auto-genirq-next
 auto-core-next
 
 auto-cpus4096-next
-
-# Fixup cpus4096 merge
-tracing/ftrace-mergefixups
 
 auto-safe-poison-pointers-next
 
@@ -57,17 +54,14 @@ x86/pebs
 # SMP IPI speedups from Jens:
 auto-generic-ipi-next
 
-# waiting for akpm ack:
-core/generic-dma-coherent
-
-# to be pulled by Greg in v2.6.27 once the dependent x86 bits are upstream:
-sysfs/firmware-mmap
+# upstream already: core/generic-dma-coherent
+# upstream already: sysfs/firmware-mmap
 
 #lots of conflicts: x86/audit-speedup
 
-core/warn-API
+#core/warn-API
 tracing/nmisafe
-fastboot
+auto-fastboot-next
 
 auto-oprofile-next
 
