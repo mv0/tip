@@ -60,7 +60,7 @@ auto-generic-ipi-next
 #lots of conflicts: x86/audit-speedup
 
 #core/warn-API
-tracing/nmisafe
+#tracing/nmisafe
 auto-fastboot-next
 
 auto-oprofile-next
