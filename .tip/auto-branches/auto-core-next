@@ -11,3 +11,4 @@ core/topology
 core/debugobjects
 core/futexes
 core/lib
+core/debug
