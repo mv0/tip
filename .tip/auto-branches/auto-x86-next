@@ -81,3 +81,4 @@ x86/microcode
 x86/paravirt
 x86/commandline
 x86/vmalloc
+x86/xsave
