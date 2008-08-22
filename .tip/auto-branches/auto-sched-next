@@ -4,3 +4,4 @@ sched/devel
 sched/new-API-sched_setscheduler
 sched/clock
 sched/cpuset
+sched/rt
