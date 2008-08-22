@@ -83,3 +83,4 @@ x86/commandline
 x86/vmalloc
 x86/xsave
 x86/iommu
+x86/alternatives
