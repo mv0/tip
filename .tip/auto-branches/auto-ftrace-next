@@ -3,4 +3,4 @@ tracing/ftrace
 tracing/mmiotrace
 tracing/sysprof
 tracing/nmisafe
-tracing/stacktrace
+tracing/stack-tracer
