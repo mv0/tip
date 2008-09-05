@@ -88,3 +88,21 @@ x86/alternatives
 # based on x86/core commit d3d0ba7
 x86/unify-cpu-detect
 
+x86/copy-user
+x86/cpu-v2
+x86/dma-coherent
+x86/dyn_array
+x86/fpu
+x86/geode
+x86/header-guards
+x86/nmi-watchdog
+x86/pci-ioapic-boot-irq-quirks
+x86/prototypes
+x86/setup-memory
+x86/smpboot
+x86/sparse-fixes
+# broken: x86/time
+# slows down things: x86/tlbflush
+x86/tsc
+x86/uv-v2
+
