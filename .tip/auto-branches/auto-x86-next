@@ -84,3 +84,7 @@ x86/vmalloc
 x86/xsave
 x86/iommu
 x86/alternatives
+
+# based on x86/core commit d3d0ba7
+x86/unify-cpu-detect
+
