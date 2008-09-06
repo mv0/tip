@@ -105,4 +105,4 @@ x86/sparse-fixes
 # slows down things: x86/tlbflush
 x86/tsc
 x86/uv-v2
-
+x86/signal
