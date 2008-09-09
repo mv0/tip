@@ -100,7 +100,7 @@ x86/pci-ioapic-boot-irq-quirks
 x86/prototypes
 x86/setup-memory
 x86/smpboot
-x86/sparse-fixes
+# broken: x86/sparse-fixes
 # broken: x86/time
 # slows down things: x86/tlbflush
 x86/tsc
