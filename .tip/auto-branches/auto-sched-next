@@ -5,3 +5,4 @@ sched/new-API-sched_setscheduler
 sched/clock
 sched/cpuset
 sched/rt
+sched/cpu-hotplug
