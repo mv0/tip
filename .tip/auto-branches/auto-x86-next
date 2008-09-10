@@ -42,8 +42,7 @@ x86/setup
 x86/mmio
 x86/delay
 
-# PEBS disabled - needs ack from Roland
-#x86/pebs
+x86/pebs
 
 x86/idle
 x86/fixmap
