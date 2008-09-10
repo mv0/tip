@@ -13,3 +13,4 @@ core/futexes
 core/lib
 core/debug
 core/resources
+core/xen
