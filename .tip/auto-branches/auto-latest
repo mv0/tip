@@ -65,3 +65,4 @@ auto-fastboot-next
 
 auto-oprofile-next
 auto-sparseirq-next
+auto-iommu-next

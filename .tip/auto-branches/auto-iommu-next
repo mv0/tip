@@ -1,0 +1,7 @@
+#
+# Integration rules for auto-iommu-next:
+#
+#
+x86/amd-iommu
+x86/iommu
+
