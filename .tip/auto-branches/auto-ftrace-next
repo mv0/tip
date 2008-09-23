@@ -4,3 +4,4 @@ tracing/mmiotrace
 tracing/sysprof
 tracing/nmisafe
 tracing/stack-tracer
+tracing/fastboot
