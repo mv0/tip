@@ -5,3 +5,4 @@ tracing/sysprof
 tracing/nmisafe
 tracing/stack-tracer
 tracing/fastboot
+tracing/markers
