@@ -8,3 +8,4 @@ tracing/stack-tracer
 tracing/fastboot
 tracing/markers
 tracing/ring-buffer
+tracing/pipe
