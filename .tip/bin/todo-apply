@@ -1,0 +1,3 @@
+todo-duplicates || exit -1
+
+tip-quilt-apply-edit
