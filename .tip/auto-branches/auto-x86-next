@@ -106,4 +106,4 @@ x86/tsc
 x86/uv-v2
 x86/signal
 x86/memory-corruption-check
-
+x86/exports
