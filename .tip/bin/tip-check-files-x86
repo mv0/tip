@@ -79,7 +79,7 @@ for N in $F; do
     CONTINUED=0
     for C in $(git-rev-list --no-merges $BASE..$BRANCH -- $N); do
       [ $CONTINUED = 1 ] && echo -n "                                   # "
-      git-log -1 --pretty=format:"%h: %s" $C | cut -c1-42
+      git log -1 --pretty=format:"%h: %s" $C | cut -c1-42
       CONTINUED=1
     done
 

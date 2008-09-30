@@ -3,7 +3,13 @@ git checkout . || { echo error; exit -1; }
 
 while :; do
   quilt next >/dev/null 2>/dev/null || {
-    echo "no more patches to apply."; exit 0;
+    echo "no more patches to apply."
+    exit 0
+  }
+
+  grep -qEi "Not.*Signed.*off.*by" $(quilt next) && {
+    echo "hm, patch explicitly not signed off."
+    exit -1
   }
 
   echo "next patch to process: "`quilt next`

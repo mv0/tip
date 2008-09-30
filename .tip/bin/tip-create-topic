@@ -4,11 +4,20 @@
 
 check_master
 
-if [ -z "$1" ]
+if [ -z "$2" ]
 then
-    echo "tip-create-topic branchname"
+    echo "tip-create-topic branchname auto-branch-name"
     exit -1
 fi
+
+if [ -z "$(tip-auto-branches | grep -w $2)" ]
+then
+    echo "$2 auto-branch does not exist?"
+    exit -1
+fi
+
+git checkout tip || { echo 'hm?'; exit -1; }
+echo $1 >> .tip/auto-branches/$2 || { echo 'hm?'; exit -1; }
 
 # create a new branch from linus
 git branch $1 linus || exit -1;
