@@ -1,3 +1,4 @@
+tracing/core
 tracing/urgent
 tracing/ftrace
 tracing/mmiotrace
@@ -6,3 +7,4 @@ tracing/nmisafe
 tracing/stack-tracer
 tracing/fastboot
 tracing/markers
+tracing/ring-buffer
