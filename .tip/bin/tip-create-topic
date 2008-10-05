@@ -18,6 +18,7 @@ fi
 
 git checkout tip || { echo 'hm?'; exit -1; }
 echo $1 >> .tip/auto-branches/$2 || { echo 'hm?'; exit -1; }
+git commit -m "$2: add $1" .tip/auto-branches/$2
 
 # create a new branch from linus
 git branch $1 linus || exit -1;
