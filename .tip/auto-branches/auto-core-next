@@ -15,3 +15,4 @@ core/debug
 core/resources
 core/xen
 core/signal
+core/elf
