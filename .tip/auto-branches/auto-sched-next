@@ -7,3 +7,4 @@ sched/cpuset
 sched/rt
 sched/cpu-hotplug
 sched/cpusets
+sched/core
