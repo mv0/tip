@@ -53,7 +53,7 @@ x86/oprofile
 # x86/unify-lib
 x86/debug
 x86/ptrace
-x86/uv
+# x86/uv - temporarily dependent on irq/sparseirq
 
 x86/amd-iommu
 x86/modules
