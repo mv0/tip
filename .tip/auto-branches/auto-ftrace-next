@@ -9,3 +9,4 @@ tracing/fastboot
 tracing/markers
 tracing/ring-buffer
 tracing/pipe
+tracing/tracepoints
