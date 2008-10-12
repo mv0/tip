@@ -114,3 +114,4 @@ x86/pat2
 x86/core-v2
 x86/mm-debug-v2
 x86/ptrace-v2
+x86/setup-v2
