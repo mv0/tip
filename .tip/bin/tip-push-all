@@ -14,5 +14,6 @@ git push origin $TOPIC_BRANCHES tip || { echo error; exit 1; }
 
 echo "force-pushing: "$AUTO_BRANCHES
 git push --tags -f origin master $AUTO_BRANCHES || { echo error; exit 1; }
+ssh linux.kernel.org 'cd tip; git update-server-info;'
 
 

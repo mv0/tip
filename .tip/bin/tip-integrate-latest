@@ -18,7 +18,7 @@ tip-merge out-of-tree || { echo 'merge of out-of-tree failed'; exit -1; }
 D=`get_date_for_tag`
 
 # save the new master head:
-git tag -m "auto-latest update: $D" tip-history-$D master ||
+git tag -m "tip/master reintegration: $D" tip-history-$D master ||
 					   { echo error6; exit -1; }
 
 #

@@ -8,6 +8,8 @@ B=`get_current_branch`
 
 echo $B
 
-git push $@ origin $B
+git push $@ origin $B && {
+  ssh linux.kernel.org 'cd tip; git update-server-info;'
+}
 
 exit $?

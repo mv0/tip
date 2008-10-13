@@ -3,9 +3,9 @@ git checkout tip || { echo error1; exit -1; }
 git fetch origin
 git merge origin/tip
 
-cp -au ~/bin/tip/* .tip/bin/
+cp -a ~/bin/tip/* .tip/bin/
 
-git commit .tip/bin/* || { echo error1; exit -1; }
+git commit -m "tip tools: update" .tip/bin/* || { echo error1; exit -1; }
 
 git checkout master || { echo error2; exit -1; }
 

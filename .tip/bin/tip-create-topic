@@ -33,5 +33,5 @@ git checkout master || { echo 'hm?'; exit -1; }
 git branch -D $1
 
 # pull it from remote and create the local branch again
-git pull
+git fetch
 tip-create-local-branches.sh
