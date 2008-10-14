@@ -2121,7 +2121,6 @@ static inline void flush_unauthorized_files(struct files_struct *files)
 	long j = -1;
 	int drop_tty = 0;
 
-	mutex_lock(&tty_mutex);
 	tty = get_current_tty();
 	if (tty) {
 		file_list_lock();
@@ -2139,8 +2138,8 @@ static inline void flush_unauthorized_files(struct files_struct *files)
 			}
 		}
 		file_list_unlock();
+		tty_kref_put(tty);
 	}
-	mutex_unlock(&tty_mutex);
 	/* Reset controlling tty. */
 	if (drop_tty)
 		no_tty();
