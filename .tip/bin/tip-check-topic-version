@@ -18,6 +18,6 @@ echo $BRANCH | grep -qe "-v[0-9]$" &&
        sed 's/-v2$/-v3/')     ||
   NEXT_BRANCH=$BRANCH"-v2"
 
-git log --quiet -1 --pretty=format:"" $NEXT_BRANCH >/dev/null 2>/dev/null && {
+git log -1 --pretty=format:"" $NEXT_BRANCH >/dev/null 2>/dev/null && {
   echo "on $BRANCH, but $NEXT_BRANCH exists too!"
 }
