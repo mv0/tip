@@ -11,3 +11,4 @@ tracing/ring-buffer
 tracing/pipe
 tracing/tracepoints
 tracing/core-v2
+tracing/fastboot-v2
