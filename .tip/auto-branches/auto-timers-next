@@ -7,3 +7,4 @@ timers/hrtimers
 timers/ntp
 timers/urgent
 timers/hpet-percpu
+timers/debug
