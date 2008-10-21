@@ -1,3 +1,4 @@
 irq/sparseirq
 irq/sparseirq-v2
 irq/sparseirq-v3
+irq/core
