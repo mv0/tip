@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. ~/bin/tip/tip-lib
+#. ~/bin/tip/tip-lib
 
 if [ $# != "1" ]; then
   echo 'usage: tip-wget <uri>'
@@ -12,9 +12,9 @@ fi
 URI=$1
 PATCH=$(basename $URI)
 
-qa 2>/dev/null | grep -q "/$PATCH$" &&
+quilt applied 2>/dev/null | grep -q "/$PATCH$" &&
                         { echo "$PATCH is already applied!"; exit -1; }
-cd patches
+cd patches || { mkdir patches; cd patches; }
 
 [ -f $PATCH ] && {
   echo "patch $PATCH already exists!"
