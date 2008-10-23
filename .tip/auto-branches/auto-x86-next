@@ -26,7 +26,7 @@ x86/irq
 x86/irqstats
 x86/kconfig
 x86/ldt
-x86/mce
+#x86/mce
 x86/memtest
 x86/mpparse
 x86/nmi
