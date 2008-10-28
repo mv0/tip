@@ -8,3 +8,4 @@ timers/ntp
 timers/urgent
 timers/hpet-percpu
 timers/debug
+timers/rtc
