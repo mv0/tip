@@ -13,3 +13,4 @@ tracing/tracepoints
 tracing/core-v2
 tracing/fastboot-v2
 tracing/core-v3
+tracing/function-return-tracer
