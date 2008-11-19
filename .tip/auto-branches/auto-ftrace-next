@@ -17,3 +17,4 @@ tracing/function-return-tracer
 tracing/branch-tracer
 tracing/dump-tracer
 tracing/options
+tracing/profiling
