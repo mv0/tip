@@ -18,3 +18,4 @@ tracing/branch-tracer
 tracing/dump-tracer
 tracing/options
 tracing/profiling
+tracing/power-tracer
