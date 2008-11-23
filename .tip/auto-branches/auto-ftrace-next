@@ -19,3 +19,4 @@ tracing/dump-tracer
 tracing/options
 tracing/profiling
 tracing/power-tracer
+tracing/powerpc
