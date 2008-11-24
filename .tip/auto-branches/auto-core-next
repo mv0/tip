@@ -17,3 +17,4 @@ core/xen
 core/signal
 core/elf
 core/warn-API
+core/core
