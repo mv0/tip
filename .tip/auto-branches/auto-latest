@@ -67,3 +67,4 @@ auto-oprofile-next
 auto-sparseirq-next
 auto-iommu-next
 auto-warnings-next
+auto-perfcounters-next
