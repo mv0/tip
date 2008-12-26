@@ -27,3 +27,4 @@ tracing/hw-branch-tracing
 tracing/function-graph-tracer
 tracing/blktrace
 tracing/graph-tracer
+tracing/docs
