@@ -29,3 +29,4 @@ tracing/blktrace
 tracing/graph-tracer
 tracing/docs
 tracing/kmemtrace
+tracing/kmemtrace2
