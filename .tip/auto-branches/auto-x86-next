@@ -127,3 +127,4 @@ x86/cpufeature
 x86/detect-hyper
 x86/mtrr
 x86/io
+x86/asm
