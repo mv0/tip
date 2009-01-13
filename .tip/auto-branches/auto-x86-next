@@ -128,3 +128,4 @@ x86/detect-hyper
 x86/mtrr
 x86/io
 x86/asm
+x86/percpu
