@@ -130,3 +130,6 @@ x86/io
 x86/asm
 x86/percpu
 x86/subarch
+
+x86/cpudetect
+
