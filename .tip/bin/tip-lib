@@ -4,7 +4,7 @@
 #
 
 get_current_branch() {
-    git branch | grep "*" | cut -c3-
+    git symbolic-ref HEAD
 }
 
 get_auto_branches() {
