@@ -10,7 +10,7 @@ check_master
 # Check whether linus has updates
 LREM=`git config --get branch.linus.remote`
 SHAR=`git ls-remote -h $LREM | grep master | sed "s/\t.*//"`
-SHAL=`git rev-list $LREM/master --max-count=1`
+SHAL=`git rev-parse $LREM/master`
 LINUS=0
 
 if [ "$SHAR" != "$SHAL" ]
@@ -44,7 +44,7 @@ do
     git checkout $B
 
     # Get the local head
-    LH=`git rev-list $B --max-count=1`
+    LH=`git rev-parse $B`
 
     # Get the reference of the last linus merge/rebase
     TREF=`get_topic_reference $B`
@@ -102,7 +102,7 @@ do
 		read -p "Cancel with ^C. Hit return to drop back in a subshell" A
 	    else
 		# Get the local head
-		NH=`git rev-list $B --max-count=1`
+		NH=`git rev-parse $B`
 		if [ "$LH" != "$NH" ]
 		then
 		    # Tag the merge

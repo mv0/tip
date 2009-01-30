@@ -30,7 +30,7 @@ then
     BS=`git branch | grep -vE " linus|tmp" | cut -c3-`
     for B in $BS
     do
-	SHA=`git rev-list origin/$B --max-count=1`
+	SHA=`git rev-parse origin/$B`
 	echo $SHA":"$B >>.git/tip-sync-remote-cache
     done
 fi
@@ -49,7 +49,7 @@ do
     RH=`echo $RH | sed "s/\:.*//"`
 
     # Get and check the new remote head"
-    NRH=`git rev-list origin/$B --max-count=1`
+    NRH=`git rev-parse origin/$B`
     if [ "$RH" = "$NRH" ]
     then
 	echo "Branch up to date: "$B
@@ -60,7 +60,7 @@ do
     git checkout $B || exit 1;
 
     # Now check whether we have local modifications
-    LH=`git rev-list $B --max-count=1`
+    LH=`git rev-parse $B`
     if [ "$RH" != "$LH" ]
     then
 	echo "Branch "$B" has local modifications"
@@ -108,9 +108,9 @@ BS=$BS" master"
 
 for B in $BS
 do
-    RH=`git rev-list $B --max-count=1`
+    RH=`git rev-parse $B`
     # Get and check the new remote head"
-    NRH=`git rev-list origin/$B --max-count=1`
+    NRH=`git rev-parse origin/$B`
     if [ "$RH" = "$NRH" ]
     then
 	echo "Branch up to date: "$B
