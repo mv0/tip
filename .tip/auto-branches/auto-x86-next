@@ -134,3 +134,4 @@ x86/subarch
 x86/cpudetect
 
 x86/headers
+x86/apic
