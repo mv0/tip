@@ -20,3 +20,4 @@ core/warn-API
 core/rcu
 #core/core
 core/header-fixes
+core/ipi
