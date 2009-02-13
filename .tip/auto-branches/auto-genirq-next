@@ -2,3 +2,4 @@ genirq
 irq/urgent
 irq/genirq
 irq/core
+irq/threaded
