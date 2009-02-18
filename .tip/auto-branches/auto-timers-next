@@ -10,3 +10,4 @@ timers/hpet-percpu
 timers/debug
 timers/rtc
 timers/core
+timers/new-apis
