@@ -2,7 +2,7 @@ auto-x86-next
 auto-sched-next
 
 
-auto-ftrace-next
+auto-tracing-next
 # Fixup RCU merge
 # tracing/mmiotrace-mergefixups
 
