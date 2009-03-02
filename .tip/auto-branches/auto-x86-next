@@ -137,3 +137,4 @@ x86/headers
 x86/apic
 x86/acpi
 x86/mce2
+x86/sched
