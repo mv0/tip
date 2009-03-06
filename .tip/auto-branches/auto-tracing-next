@@ -30,3 +30,4 @@ tracing/graph-tracer
 tracing/docs
 tracing/kmemtrace
 tracing/kmemtrace2
+tracing/printk
