@@ -32,3 +32,4 @@ tracing/kmemtrace
 tracing/kmemtrace2
 tracing/printk
 tracing/doc
+tracing/syscalls
