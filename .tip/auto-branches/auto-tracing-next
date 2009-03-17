@@ -34,3 +34,4 @@ tracing/printk
 tracing/doc
 tracing/syscalls
 tracing/syscalls
+tracing/filters
