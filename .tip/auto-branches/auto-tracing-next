@@ -35,3 +35,4 @@ tracing/doc
 tracing/syscalls
 tracing/syscalls
 tracing/filters
+tracing/tasks
