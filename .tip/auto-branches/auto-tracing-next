@@ -36,3 +36,4 @@ tracing/syscalls
 tracing/syscalls
 tracing/filters
 tracing/tasks
+tracing/kprobes
