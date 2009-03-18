@@ -9,3 +9,4 @@ sched/rt
 sched/cpu-hotplug
 sched/cpusets
 sched/cleanups
+sched/debug
