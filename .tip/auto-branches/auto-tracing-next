@@ -23,7 +23,8 @@ tracing/options
 tracing/profiling
 tracing/power-tracer
 tracing/powerpc
-tracing/hw-branch-tracing
+# broken right now:
+#tracing/hw-branch-tracing
 tracing/function-graph-tracer
 tracing/blktrace
 tracing/graph-tracer
