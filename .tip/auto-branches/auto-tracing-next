@@ -38,3 +38,4 @@ tracing/syscalls
 tracing/filters
 tracing/tasks
 tracing/kprobes
+tracing/hw-breakpoints
