@@ -10,3 +10,4 @@ sched/cpu-hotplug
 sched/cpusets
 sched/cleanups
 sched/debug
+sched/core-v2
