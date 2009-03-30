@@ -22,3 +22,4 @@ core/rcu
 core/header-fixes
 core/ipi
 core/cleanups
+core/locking-v2
