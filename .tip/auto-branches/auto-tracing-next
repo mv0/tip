@@ -40,3 +40,4 @@ tracing/tasks
 tracing/kprobes
 tracing/hw-breakpoints
 tracing/blktrace-v2
+tracing/kmemtrace-v2
