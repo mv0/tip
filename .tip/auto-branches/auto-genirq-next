@@ -3,3 +3,4 @@ irq/urgent
 irq/genirq
 irq/core
 irq/threaded
+irq/numa
