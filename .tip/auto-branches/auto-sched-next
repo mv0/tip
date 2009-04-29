@@ -12,3 +12,4 @@ sched/cleanups
 sched/debug
 sched/core-v2
 sched/balancing
+sched/docs
