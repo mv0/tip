@@ -42,3 +42,4 @@ tracing/hw-breakpoints
 tracing/blktrace-v2
 tracing/kmemtrace-v2
 tracing/splice
+tracing/workqueues
