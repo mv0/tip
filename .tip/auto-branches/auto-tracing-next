@@ -43,3 +43,4 @@ tracing/kmemtrace-v2
 tracing/splice
 # boot lockup:
 # tracing/workqueues
+tracing/events
