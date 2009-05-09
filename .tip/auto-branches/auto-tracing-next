@@ -44,3 +44,4 @@ tracing/splice
 # boot lockup:
 # tracing/workqueues
 tracing/events
+tracing/mm
