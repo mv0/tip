@@ -11,3 +11,4 @@ timers/debug
 timers/rtc
 timers/core
 timers/new-apis
+timers/migration
