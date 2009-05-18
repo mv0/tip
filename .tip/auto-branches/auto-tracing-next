@@ -45,3 +45,4 @@ tracing/splice
 # tracing/workqueues
 tracing/events
 tracing/mm
+tracing/stat
