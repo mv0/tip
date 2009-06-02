@@ -1,48 +1,46 @@
 tracing/core
 tracing/urgent
-tracing/ftrace
-tracing/mmiotrace
-tracing/sysprof
-tracing/nmisafe
-tracing/stack-tracer
-tracing/fastboot
-tracing/markers
-tracing/ring-buffer
-tracing/pipe
-tracing/tracepoints
-tracing/core-v2
-tracing/fastboot-v2
-tracing/core-v3
-tracing/function-return-tracer
-tracing/branch-tracer
+#tracing/ftrace - build failure
+#tracing/mmiotrace
+#tracing/sysprof
+#tracing/nmisafe
+#tracing/stack-tracer
+#tracing/fastboot
+#tracing/markers
+#tracing/ring-buffer
+#tracing/pipe
+#tracing/tracepoints
+#tracing/core-v2
+#tracing/fastboot-v2
+#tracing/core-v3
+#tracing/function-return-tracer
+#tracing/branch-tracer
 
 # dont know yet:
 # tracing/dump-tracer
 
-tracing/options
-tracing/profiling
-tracing/power-tracer
-tracing/powerpc
-tracing/hw-branch-tracing
-tracing/function-graph-tracer
-tracing/blktrace
-tracing/graph-tracer
-tracing/docs
-tracing/kmemtrace
-tracing/kmemtrace2
-tracing/printk
-tracing/doc
-tracing/syscalls
-tracing/syscalls
-tracing/filters
-tracing/tasks
-tracing/kprobes
-tracing/hw-breakpoints
-tracing/blktrace-v2
-tracing/kmemtrace-v2
-tracing/splice
-# boot lockup:
-# tracing/workqueues
-tracing/events
+#tracing/options
+#tracing/profiling
+#tracing/power-tracer
+#tracing/powerpc
+#tracing/hw-branch-tracing
+#tracing/function-graph-tracer
+#tracing/blktrace
+#tracing/graph-tracer
+#tracing/docs
+#tracing/kmemtrace
+#tracing/kmemtrace2
+#tracing/printk
+#tracing/doc
+#tracing/syscalls
+#tracing/filters
+#tracing/tasks
+#tracing/kprobes
+#tracing/hw-breakpoints
+#tracing/blktrace-v2
+#tracing/kmemtrace-v2
+#tracing/splice
+#tracing/workqueues
+#tracing/events
 #tracing/mm - not yet
-tracing/stat
+#tracing/stat
