@@ -44,5 +44,5 @@ tracing/splice
 # boot lockup:
 # tracing/workqueues
 tracing/events
-tracing/mm
+#tracing/mm - not yet
 tracing/stat
