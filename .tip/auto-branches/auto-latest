@@ -1,70 +1,15 @@
 auto-x86-next
-auto-sched-next
-
-
-auto-tracing-next
-# Fixup RCU merge
-# tracing/mmiotrace-mergefixups
-
-auto-timers-next
-auto-genirq-next
-
 auto-core-next
-
 auto-cpus4096-next
-
+auto-tracing-next
+auto-genirq-next
 auto-safe-poison-pointers-next
-
-# to get its own -next branch:
-# test problems: core/percpu-zerobased
-
+auto-sched-next
 auto-stackprotector-next
-
-# core/percpu-zerobased merge fixups against stackprotector:
-# core/percpu-zerobased-mergefixups
-
-auto-kmemcheck-next
-
-pci-for-jesse
-
-# branched off x86/apic cded44424013defddadac700dcefe72a68ad9173:
-x86/pci-ioapic-boot-irq-quirks
-# waiting for akpm's ack to put into auto-x86-next:
-# early crash with: http://redhat.com/~mingo/misc/config-Wed_Jun_18_14_51_18_CEST_2008.bad - hm, seems fixed meanwhile
-x86/mm-debug
-
-# waiting for akpm's ack. Based off x86/mpparse, commit 9920a004626
-## REBASEME: x86/mm-remove-arch-get-ram-range
-
-tracing/sched_markers
-#tracing/markers
-#tracing/textedit
-#tracing/nmisafe
-#tracing/stopmachine-allcpus
-#tracing/immediates
-
-# core build system / linkage changes:
-build
-
-# needs Roland ack:
-x86/pebs
-# needs Len to pull:
-# lets do this later: x86/acpi-rename-acpi_nmi
-
-# SMP IPI speedups from Jens:
+auto-timers-next
 auto-generic-ipi-next
-
-# upstream already: core/generic-dma-coherent
-# upstream already: sysfs/firmware-mmap
-
-#lots of conflicts: x86/audit-speedup
-
-#core/warn-API
-#tracing/nmisafe
-auto-fastboot-next
-
 auto-oprofile-next
+auto-fastboot-next
 auto-sparseirq-next
 auto-iommu-next
-auto-warnings-next
-auto-perfcounters-next
+auto-kmemcheck-next
