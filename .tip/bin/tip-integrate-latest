@@ -13,6 +13,11 @@ git branch -f master
 #
 git checkout master
 
+#
+# Special, not-for-linux-next-yet branches:
+#
+tip-merge auto-warnings-next
+tip-merge auto-perfcounters-next
 tip-merge out-of-tree || { echo 'merge of out-of-tree failed'; exit -1; }
 
 D=`get_date_for_tag`
