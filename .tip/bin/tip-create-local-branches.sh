@@ -4,7 +4,7 @@
 
 check_master
 
-BS=`(git branch -a | grep origin | grep -v master | grep -v HEAD | grep -v " linus" | sed s@origin/@@; \
+BS=`(git branch -a | grep origin | grep -v master | grep -v HEAD | grep -v " linus" | sed s@origin/@@ | sed s@remotes/@@; \
     git branch | grep -v master | grep -v HEAD | grep -v " linus") | sort | uniq -u`
 
 for B in $BS
