@@ -4,7 +4,7 @@
 #
 
 get_current_branch() {
-    git symbolic-ref HEAD
+    git symbolic-ref HEAD | sed 's@refs/heads/@@'
 }
 
 get_auto_branches() {
@@ -49,7 +49,7 @@ check_master() {
 abort_merge() {
     echo "merge aborted manually!";
     git reset --hard;
-    git checkout master; 
+    git checkout master;
     exit -1;
 }
 
