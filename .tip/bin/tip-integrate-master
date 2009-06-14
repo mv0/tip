@@ -2,7 +2,9 @@
 
 . $(dirname "$0")/tip-lib
 
-tip-integrate auto-latest || { echo "Integration of auto-latest failed"; exit -1; }
+tip-backup || { echo "backup failed"; exit -1; }
+
+tip-integrate-all || { echo "Integration of all failed"; exit -1; }
 
 git checkout auto-latest
 git branch -f master
