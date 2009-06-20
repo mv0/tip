@@ -20,4 +20,7 @@ echo $BRANCH | grep -qe "-v[0-9]$" &&
 
 git log -1 --pretty=format:"" $NEXT_BRANCH >/dev/null 2>/dev/null && {
   echo "on $BRANCH, but $NEXT_BRANCH exists too!"
+  exit -1
 }
+
+exit 0
