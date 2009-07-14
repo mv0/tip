@@ -9,7 +9,7 @@ HEAD=$1
 BRANCH=$1
 BASE=$2
 
-git-branch | grep -qw $BRANCH || { echo "$BRANCH does not exist!"; exit -1; }
+git branch | grep -qw $BRANCH || { echo "$BRANCH does not exist!"; exit -1; }
 
 echo "generating pull request mail for $HEAD:"
 
@@ -27,7 +27,7 @@ cd ~/tip/
  printf "	Ingo\n\n"
  echo '------------------>'
 
- git-shortlog --no-merges $BASE..$BRANCH
+ git shortlog --no-merges $BASE..$BRANCH
  echo
  git diff -M --stat --summary $BASE..$BRANCH
  echo

@@ -7,13 +7,13 @@ fi
 
 HEAD=$(tip-curr | cut -d/ -f2- | cut -d' ' -f1)
 BRANCH=${1:-$HEAD}
-BASE=$(git-merge-base $BRANCH linus)
+BASE=$(git merge-base $BRANCH linus)
 
 __tip-pull-request $BRANCH $BASE
 
 exit
 
-git-branch | grep -qw $BRANCH || { echo "$BRANCH does not exist!"; exit -1; }
+git branch | grep -qw $BRANCH || { echo "$BRANCH does not exist!"; exit -1; }
 
 echo "generating pull request mail for $HEAD:"
 
@@ -31,7 +31,7 @@ cd ~/tip/
  printf "	Ingo\n\n"
  echo '------------------>'
 
- git-shortlog --no-merges $BASE..$BRANCH
+ git shortlog --no-merges $BASE..$BRANCH
  echo
  git diff -M --stat --summary $BASE..$BRANCH
  echo

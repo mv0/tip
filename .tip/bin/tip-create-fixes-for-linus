@@ -9,21 +9,21 @@ for N in $(tip-topic-branches | grep urgent | grep -v undo | sed 's/\/urgent$//g
 
   BRANCH=$N-fixes-for-linus
 
-  git-branch $BRANCH $N/urgent || {
-    DELTA=$(git-log linus..$N-fixes-for-linus | wc -l)
+  git branch $BRANCH $N/urgent || {
+    DELTA=$(git log linus..$N-fixes-for-linus | wc -l)
     [ $DELTA != 0 ] && {
       echo "branch $BRANCH already exists and not yet upstream!"
       EXIT=-1
       continue
     }
     echo "branch $BRANCH already upstream, recreating it":
-    git-branch -f $BRANCH $N/urgent
+    git branch -f $BRANCH $N/urgent
   }
 
   tip-checkout $BRANCH
   tip-push-current -f
 
-  BASE=$(git-merge-base $BRANCH linus)
+  BASE=$(git merge-base $BRANCH linus)
 
   tip-pull-request $BRANCH > /dev/null
 

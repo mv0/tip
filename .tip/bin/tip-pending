@@ -17,8 +17,8 @@ NR=0
 TOTAL=0
 SUM=0
 for B in $BRANCHES; do
- C1=$(git-log-line --no-merges linus..$B | wc -l)
-# C2=$(git-log-line --no-merges linux-next..$B | wc -l)
+ C1=$(git log-line --no-merges linus..$B | wc -l)
+# C2=$(git log-line --no-merges linux-next..$B | wc -l)
 
 
  [ "$C1" != "0" ] && {
@@ -34,8 +34,8 @@ echo "  ---------------------"
 [ "$#" != "0" ] && { print_sum; exit 0; }
 
 for B in $(tip-auto-branches | grep -vw auto-latest ); do
- C1=$(git-log-line --no-merges linus..$B | wc -l)
-# C2=$(git-log-line --no-merges linux-next..$B | wc -l)
+ C1=$(git log-line --no-merges linus..$B | wc -l)
+# C2=$(git log-line --no-merges linux-next..$B | wc -l)
 
 
  [ "$C1" != "0" ] && {
@@ -46,8 +46,8 @@ done
 echo "  ---------------------"
 
 for B in auto-latest; do
- C1=$(git-log-line --no-merges linus..$B | wc -l)
-# C2=$(git-log-line --no-merges linux-next..$B | wc -l)
+ C1=$(git log-line --no-merges linus..$B | wc -l)
+# C2=$(git log-line --no-merges linux-next..$B | wc -l)
 
 
  [ "$C1" != "0" ] && {
@@ -58,8 +58,8 @@ done
 echo "  ---------------------"
 
 for B in $(tip-auto-branches | grep urgent ); do
- C1=$(git-log-line --no-merges linus..$B | wc -l)
-# C2=$(git-log-line --no-merges linux-next..$B | wc -l)
+ C1=$(git log-line --no-merges linus..$B | wc -l)
+# C2=$(git log-line --no-merges linux-next..$B | wc -l)
 
 
  [ "$C1" != "0" ] && {
@@ -71,5 +71,5 @@ echo "  ---------------------"
 
 print_sum
 
-P=$(for N in $BRANCHES; do git-log-line linus..$N; done | sort | uniq | wc -l)
+P=$(for N in $BRANCHES; do git log-line linus..$N; done | sort | uniq | wc -l)
 printf "  unique commits:  %4d\n" $P
