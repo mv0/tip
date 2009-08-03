@@ -26,7 +26,6 @@ x86/irq
 x86/irqstats
 x86/kconfig
 x86/ldt
-#x86/mce
 x86/memtest
 x86/mpparse
 x86/nmi
@@ -136,7 +135,7 @@ x86/cpudetect
 x86/headers
 x86/apic
 x86/acpi
-x86/mce3
+x86/mce
 x86/sched
 x86/mm-v2
 x86/kbuild
