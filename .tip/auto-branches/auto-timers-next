@@ -12,3 +12,4 @@ timers/rtc
 timers/core
 timers/new-apis
 timers/migration
+timers/tracing
