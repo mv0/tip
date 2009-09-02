@@ -141,3 +141,5 @@ x86/mm-v2
 x86/kbuild
 x86/kbuild-phys
 x86/asm-generic
+x86/platform
+x86/txt
