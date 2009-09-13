@@ -44,3 +44,4 @@ tracing/urgent
 #tracing/events
 #tracing/mm - not yet
 #tracing/stat
+tracing/sched
