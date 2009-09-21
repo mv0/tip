@@ -5,3 +5,4 @@ perfcounters/urgent
 perfcounters/powerpc
 perfcounters/tracing
 perfcounters/mm
+perfcounters/rename
