@@ -13,4 +13,4 @@ auto-fastboot-next
 auto-sparseirq-next
 auto-iommu-next
 auto-kmemcheck-next
-auto-perfcounters-next
+auto-perf-next
