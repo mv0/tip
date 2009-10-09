@@ -143,3 +143,4 @@ x86/kbuild-phys
 x86/asm-generic
 x86/platform
 x86/txt
+x86/process
