@@ -17,6 +17,7 @@
 
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/pm.h>
@@ -317,6 +318,8 @@ static void aer_error_resume(struct pci_dev *dev)
 static int __init aer_service_init(void)
 {
 	if (pcie_aer_disable)
+		return -ENXIO;
+	if (!pci_msi_enabled())
 		return -ENXIO;
 	return pcie_port_service_register(&aerdriver);
 }

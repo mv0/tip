@@ -610,7 +610,6 @@ void r600_kms_blit_copy(struct radeon_device *rdev,
 
 	DRM_DEBUG("emitting copy %16llx %16llx %d %d\n", src_gpu_addr, dst_gpu_addr,
 		  size_bytes, rdev->r600_blit.vb_used);
-	vb = (u32 *)(rdev->r600_blit.vb_ib->ptr + rdev->r600_blit.vb_used);
 	if ((size_bytes & 3) || (src_gpu_addr & 3) || (dst_gpu_addr & 3)) {
 		max_bytes = 8192;
 
@@ -653,6 +652,7 @@ void r600_kms_blit_copy(struct radeon_device *rdev,
 				vb = r600_nomm_get_vb_ptr(dev);
 #endif
 			}
+			vb = (u32 *)(rdev->r600_blit.vb_ib->ptr + rdev->r600_blit.vb_used);
 
 			vb[0] = i2f(dst_x);
 			vb[1] = 0;
@@ -747,6 +747,7 @@ void r600_kms_blit_copy(struct radeon_device *rdev,
 				vb = r600_nomm_get_vb_ptr(dev);
 			}
 #endif
+			vb = (u32 *)(rdev->r600_blit.vb_ib->ptr + rdev->r600_blit.vb_used);
 
 			vb[0] = i2f(dst_x / 4);
 			vb[1] = 0;
@@ -774,7 +775,7 @@ void r600_kms_blit_copy(struct radeon_device *rdev,
 
 			/* dst 23 */
 			set_render_target(rdev, COLOR_8_8_8_8,
-					  dst_x + cur_size, h,
+					  (dst_x + cur_size) / 4, h,
 					  dst_gpu_addr);
 
 			/* scissors 12  */
