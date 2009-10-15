@@ -81,6 +81,7 @@ def parse_msg(body, fdp, mailcc, messageid):
 			else:
 				for cc in mailcc:
 					cc = cc.strip()
+					cc = cc.replace("\"", "")
 					#
 					# Skip maintainers and lkml:
 					#
