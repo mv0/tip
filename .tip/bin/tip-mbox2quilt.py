@@ -226,7 +226,7 @@ while 1:
 	mailsubject = mailsubject.replace("\t", " ")
 
 
-	subject = str(rmpatch.sub("", mailsubject)).strip()
+	subject = str(rmpatch.sub("", mailsubject)).strip().rstrip(".")
 	fname = subject_to_fname(subject)
 
 	idx = subject.find(":")
