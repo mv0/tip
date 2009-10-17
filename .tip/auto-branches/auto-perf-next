@@ -1,3 +1,4 @@
 perf/core
 perf/urgent
 perf/mce
+perf/probes
