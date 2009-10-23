@@ -122,7 +122,7 @@ def parse_msg(body, fdp, mailcc, messageid):
 			else:
 				align_buf = line
 
-			if len(align_buf) >= 65 and not line[0].isspace():
+			if len(align_buf) >= 65 and line != "" and not line[0].isspace():
 
 				space_idx = -1
 				for i in range(65):
