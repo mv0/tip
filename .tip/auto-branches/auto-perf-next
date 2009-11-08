@@ -4,3 +4,4 @@ perf/mce
 perf/probes
 perf/hw-breakpoints
 perf/bench
+perf/powerpc
