@@ -5,3 +5,4 @@ perf/probes
 perf/hw-breakpoints
 perf/bench
 perf/powerpc
+perf/scripting
