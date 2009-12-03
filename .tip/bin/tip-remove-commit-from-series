@@ -1,3 +1,4 @@
+#! /bin/sh
 
 [ "$#" = "0" ] &&
      { echo "usage: tip-remove-commit-from-series <sha1>"; exit -1; }

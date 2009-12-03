@@ -1,3 +1,4 @@
+#! /bin/sh
 
 git branch | grep '^*' | grep -q '^* master$' ||
                             { echo "not on master branch!"; exit -1; }

@@ -1,3 +1,4 @@
+#! /bin/sh
 
 for M in $(for N in $(git log linus..x86/core | grep 'Merge branch' | grep -v linus); do echo $N; done | grep \'x86/ | cut -d\' -f2 | tac); do tip-check-topic $M; done
 

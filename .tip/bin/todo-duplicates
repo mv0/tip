@@ -1,3 +1,4 @@
+#! /bin/sh
 
 DUP=$( { quilt unapplied; quilt applied 2>/dev/null; } | sort | uniq -c | grep -v "^      1 " )
 

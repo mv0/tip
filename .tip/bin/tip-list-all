@@ -1,3 +1,4 @@
+#! /bin/sh
 
 for N in `git branch -a | grep /devel`; do
   M=$(echo $N | sed 's/\/devel//g')

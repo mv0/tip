@@ -1,3 +1,4 @@
+#! /bin/sh
 
 git checkout tip || { echo error1; exit -1; }
 git fetch origin

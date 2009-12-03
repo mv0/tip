@@ -1,3 +1,4 @@
+#! /bin/sh
 
 echo core/softlockup-for-linus cpus4096-for-linus stackprotector-for-linus safe-poison-pointers-for-linus sched/for-linus > .2
 

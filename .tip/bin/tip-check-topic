@@ -1,4 +1,4 @@
-
+#! /bin/sh
 
 if [ $# -gt "2" ]; then
         echo 'usage: tip-check-topic <topic-refspec> [<base-refspec>]'

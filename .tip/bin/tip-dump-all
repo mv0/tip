@@ -1,3 +1,4 @@
+#! /bin/sh
 
 for N in $(git branch | grep -vE ' master$| base$|for-linus' | cut -c3-); do
 

@@ -1,3 +1,4 @@
+#! /bin/sh
 
 git shortlog --no-merges \
  $(tip-topic-branches | grep urgent | grep -v undo | \

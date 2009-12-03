@@ -1,4 +1,4 @@
-
+#! /bin/sh
 
 if [ $# -gt "1" ]; then
         echo 'usage: tip-pull-request <head-branch>'

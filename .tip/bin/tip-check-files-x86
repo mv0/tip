@@ -1,3 +1,4 @@
+#! /bin/sh
 
 F=$(echo $* | cut -d' ' -f3-)
 #F=$*

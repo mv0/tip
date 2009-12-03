@@ -1,3 +1,4 @@
+#! /bin/sh
 
 [ $# != 1 ] && { echo "usage: tip-cherry-pick <sha1>"; exit -1; }
 

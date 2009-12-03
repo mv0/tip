@@ -1,4 +1,4 @@
-
+#! /bin/sh
 
 if [ $# != "2" ]; then
         echo 'usage: __tip-pull-request <head-branch> <base-branch>'
