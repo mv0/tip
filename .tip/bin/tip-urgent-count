@@ -11,7 +11,7 @@ for N in $URGENT; do
 done
 
 echo "-------------------------"
-printf "%20s: %3d\n" "TOTAL" $(git log --pretty=oneline --no-merges $(echo $URGENT | sed 's/^/linus../g') | wc -l)
+printf "%20s: %3d\n" "TOTAL" $(git log --pretty=oneline --no-merges $URGENT ^linus | wc -l)
 
 echo
 
