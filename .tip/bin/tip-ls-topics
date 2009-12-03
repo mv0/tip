@@ -1,4 +1,4 @@
-. ~/bin/tip/tip-lib
+. $(dirname "$0")/tip-lib
 
 usage ()
 {

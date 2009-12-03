@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. ~/bin/tip/tip-lib
+. $(dirname "$0")/tip-lib
 
 if [ $# != "1" ]; then
   echo 'usage: tip-wget-series <uri>'
