@@ -8,8 +8,7 @@ get_current_branch() {
 }
 
 get_auto_branches() {
-
-    git ls-tree  tip -- .tip/auto-branches/ | sed "s@.*tip/auto-branches/@@"
+    git ls-tree --name-only --full-name tip:.tip/auto-branches/
 }
 
 get_auto_branches_no_latest() {
@@ -19,8 +18,7 @@ get_auto_branches_no_latest() {
 
 get_all_auto_branches() {
 
-    AB=`git ls-tree  tip -- .tip/auto-branches/ | sed "s@.*tip/auto-branches/@@"`
-    for B in $AB
+    for B in $(get_auto_branches)
     do
 	echo $B
 	echo $B"-base"
