@@ -7,3 +7,4 @@ perf/bench
 perf/powerpc
 perf/scripting
 perf/lock
+perf/diff
