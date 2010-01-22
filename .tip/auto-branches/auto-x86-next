@@ -135,7 +135,7 @@ x86/cpudetect
 x86/headers
 x86/apic
 x86/acpi
-#x86/mce
+x86/mce
 x86/sched
 x86/mm-v2
 x86/kbuild
