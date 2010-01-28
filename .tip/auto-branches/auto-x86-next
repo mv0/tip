@@ -145,3 +145,4 @@ x86/platform
 x86/txt
 x86/process
 x86/entry
+x86/rlimit
