@@ -8,3 +8,4 @@ perf/powerpc
 perf/scripting
 perf/lock
 perf/diff
+perf/nmi
