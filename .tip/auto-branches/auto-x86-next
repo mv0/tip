@@ -149,3 +149,4 @@ x86/rlimit
 x86/pci
 x86/gpu
 x86/mrst
+x86/atomic
