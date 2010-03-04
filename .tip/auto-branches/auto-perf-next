@@ -9,3 +9,4 @@ perf/scripting
 perf/lock
 perf/diff
 perf/nmi
+perf/pebs
