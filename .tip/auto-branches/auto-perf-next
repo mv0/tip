@@ -10,3 +10,4 @@ perf/lock
 perf/diff
 perf/nmi
 perf/pebs
+perf/x86
