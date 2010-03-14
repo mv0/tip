@@ -1,9 +1,19 @@
-#! /bin/sh
+
 
 if [ $# -gt "1" ]; then
         echo 'usage: tip-pull-request <head-branch>'
 	exit -1
 fi
+
+[ "$(gll master..)" != "" ] && {
+        echo 'branch not in master!'
+	exit -1
+}
+
+[ "$(gll linus..)" = "" ] && {
+        echo 'branch already upstream!'
+	exit 0
+}
 
 HEAD=$(tip-curr | cut -d/ -f2- | cut -d' ' -f1)
 BRANCH=${1:-$HEAD}
