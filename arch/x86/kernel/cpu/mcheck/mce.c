@@ -26,6 +26,7 @@
 #include <linux/sched.h>
 #include <linux/sysfs.h>
 #include <linux/types.h>
+#include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/kmod.h>
 #include <linux/poll.h>
@@ -45,6 +46,8 @@
 #include <asm/msr.h>
 
 #include "mce-internal.h"
+
+static DEFINE_MUTEX(mce_read_mutex);
 
 #define rcu_dereference_check_mce(p) \
 	rcu_dereference_check((p), \
@@ -1489,8 +1492,6 @@ static void collect_tscs(void *data)
 
 	rdtscll(cpu_tsc[smp_processor_id()]);
 }
-
-static DEFINE_MUTEX(mce_read_mutex);
 
 static ssize_t mce_read(struct file *filp, char __user *ubuf, size_t usize,
 			loff_t *off)

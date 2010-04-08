@@ -15,6 +15,7 @@
 
 #include <linux/input.h>
 #include <linux/input/sparse-keymap.h>
+#include <linux/slab.h>
 
 MODULE_AUTHOR("Dmitry Torokhov <dtor@mail.ru>");
 MODULE_DESCRIPTION("Generic support for sparse keymaps");
@@ -64,7 +65,8 @@ struct key_entry *sparse_keymap_entry_from_keycode(struct input_dev *dev,
 EXPORT_SYMBOL(sparse_keymap_entry_from_keycode);
 
 static int sparse_keymap_getkeycode(struct input_dev *dev,
-				    int scancode, int *keycode)
+				    unsigned int scancode,
+				    unsigned int *keycode)
 {
 	const struct key_entry *key =
 			sparse_keymap_entry_from_scancode(dev, scancode);
@@ -78,7 +80,8 @@ static int sparse_keymap_getkeycode(struct input_dev *dev,
 }
 
 static int sparse_keymap_setkeycode(struct input_dev *dev,
-				    int scancode, int keycode)
+				    unsigned int scancode,
+				    unsigned int keycode)
 {
 	struct key_entry *key;
 	int old_keycode;
