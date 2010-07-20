@@ -152,3 +152,4 @@ x86/mrst
 x86/atomic
 core/hweight
 x86/olpc
+x86/gcc46
