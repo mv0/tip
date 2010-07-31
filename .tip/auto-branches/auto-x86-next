@@ -154,3 +154,4 @@ core/hweight
 x86/olpc
 x86/gcc46
 x86/vmware
+x86/hwmon
