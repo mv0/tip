@@ -51,6 +51,7 @@ nouveau_irq_preinstall(struct drm_device *dev)
 
 	if (dev_priv->card_type == NV_50) {
 		INIT_WORK(&dev_priv->irq_work, nv50_display_irq_handler_bh);
+		INIT_WORK(&dev_priv->hpd_work, nv50_display_irq_hotplug_bh);
 		INIT_LIST_HEAD(&dev_priv->vbl_waiting);
 	}
 }
@@ -1203,7 +1204,7 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 {
 	struct drm_device *dev = (struct drm_device *)arg;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	uint32_t status, fbdev_flags = 0;
+	uint32_t status;
 	unsigned long flags;
 
 	status = nv_rd32(dev, NV03_PMC_INTR_0);
@@ -1211,11 +1212,6 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 		return IRQ_NONE;
 
 	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
-
-	if (dev_priv->fbdev_info) {
-		fbdev_flags = dev_priv->fbdev_info->flags;
-		dev_priv->fbdev_info->flags |= FBINFO_HWACCEL_DISABLED;
-	}
 
 	if (status & NV_PMC_INTR_0_PFIFO_PENDING) {
 		nouveau_fifo_irq_handler(dev);
@@ -1245,9 +1241,6 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 
 	if (status)
 		NV_ERROR(dev, "Unhandled PMC INTR status bits 0x%08x\n", status);
-
-	if (dev_priv->fbdev_info)
-		dev_priv->fbdev_info->flags = fbdev_flags;
 
 	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 
