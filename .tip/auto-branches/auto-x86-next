@@ -156,3 +156,5 @@ x86/gcc46
 x86/vmware
 x86/hwmon
 x86/bios
+core/memblock
+x86/memblock
