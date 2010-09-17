@@ -158,3 +158,4 @@ x86/hwmon
 x86/bios
 core/memblock
 x86/memblock
+x86/amd-nb
