@@ -12,3 +12,4 @@ perf/nmi
 perf/pebs
 perf/x86
 perf/live
+perf/jump-label
