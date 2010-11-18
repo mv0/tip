@@ -161,3 +161,4 @@ x86/memblock
 x86/amd-nb
 x86/vm86
 x86/trampoline
+x86/security
