@@ -14,3 +14,4 @@ auto-sparseirq-next
 auto-iommu-next
 auto-kmemcheck-next
 auto-perf-next
+auto-um-next
