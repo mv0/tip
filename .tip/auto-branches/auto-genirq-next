@@ -4,3 +4,4 @@ irq/genirq
 irq/core
 irq/threaded
 irq/numa
+irq/cleanup
