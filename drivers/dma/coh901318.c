@@ -157,6 +157,7 @@ static const struct file_operations coh901318_debugfs_status_operations = {
 	.owner		= THIS_MODULE,
 	.open		= coh901318_debugfs_open,
 	.read		= coh901318_debugfs_read,
+	.llseek		= default_llseek,
 };
 
 
@@ -848,7 +849,7 @@ static irqreturn_t dma_irq_handler(int irq, void *dev_id)
 
 				/* Must clear TC interrupt before calling
 				 * dma_tc_handle
-				 * in case tc_handle initate a new dma job
+				 * in case tc_handle initiate a new dma job
 				 */
 				__set_bit(i, virtbase + COH901318_TC_INT_CLEAR1);
 
@@ -893,7 +894,7 @@ static irqreturn_t dma_irq_handler(int irq, void *dev_id)
 				}
 				/* Must clear TC interrupt before calling
 				 * dma_tc_handle
-				 * in case tc_handle initate a new dma job
+				 * in case tc_handle initiate a new dma job
 				 */
 				__set_bit(i, virtbase + COH901318_TC_INT_CLEAR2);
 
@@ -1609,7 +1610,7 @@ int __init coh901318_init(void)
 {
 	return platform_driver_probe(&coh901318_driver, coh901318_probe);
 }
-subsys_initcall(coh901318_init);
+arch_initcall(coh901318_init);
 
 void __exit coh901318_exit(void)
 {

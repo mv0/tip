@@ -281,7 +281,7 @@ static void cleanup(struct wdm_device *desc)
 			  desc->sbuf,
 			  desc->validity->transfer_dma);
 	usb_free_coherent(interface_to_usbdev(desc->intf),
-			  desc->wMaxCommand,
+			  desc->bMaxPacketSize0,
 			  desc->inbuf,
 			  desc->response->transfer_dma);
 	kfree(desc->orq);
@@ -342,7 +342,7 @@ static ssize_t wdm_write
 		goto outnp;
 	}
 
-	if (!file->f_flags && O_NONBLOCK)
+	if (!(file->f_flags & O_NONBLOCK))
 		r = wait_event_interruptible(desc->wait, !test_bit(WDM_IN_USE,
 								&desc->flags));
 	else
@@ -584,7 +584,8 @@ static const struct file_operations wdm_fops = {
 	.open =		wdm_open,
 	.flush =	wdm_flush,
 	.release =	wdm_release,
-	.poll =		wdm_poll
+	.poll =		wdm_poll,
+	.llseek =	noop_llseek,
 };
 
 static struct usb_class_driver wdm_class = {

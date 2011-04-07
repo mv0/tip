@@ -30,6 +30,8 @@
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/io.h>
+#include <linux/irq.h>
+#include <linux/completion.h>
 
 #include <asm/mach/flash.h>
 #include <mach/mxc_nand.h>
@@ -151,7 +153,7 @@ struct mxc_nand_host {
 	int			irq;
 	int			eccsize;
 
-	wait_queue_head_t	irq_waitq;
+	struct completion	op_completion;
 
 	uint8_t			*data_buf;
 	unsigned int		buf_start;
@@ -164,6 +166,7 @@ struct mxc_nand_host {
 	void			(*send_read_id)(struct mxc_nand_host *);
 	uint16_t		(*get_dev_status)(struct mxc_nand_host *);
 	int			(*check_int)(struct mxc_nand_host *);
+	void			(*irq_control)(struct mxc_nand_host *, int);
 };
 
 /* OOB placement block for use with hardware ecc generation */
@@ -208,6 +211,31 @@ static struct nand_ecclayout nandv2_hw_eccoob_largepage = {
 	}
 };
 
+/* OOB description for 4096 byte pages with 128 byte OOB */
+static struct nand_ecclayout nandv2_hw_eccoob_4k = {
+	.eccbytes = 8 * 9,
+	.eccpos = {
+		7,  8,  9, 10, 11, 12, 13, 14, 15,
+		23, 24, 25, 26, 27, 28, 29, 30, 31,
+		39, 40, 41, 42, 43, 44, 45, 46, 47,
+		55, 56, 57, 58, 59, 60, 61, 62, 63,
+		71, 72, 73, 74, 75, 76, 77, 78, 79,
+		87, 88, 89, 90, 91, 92, 93, 94, 95,
+		103, 104, 105, 106, 107, 108, 109, 110, 111,
+		119, 120, 121, 122, 123, 124, 125, 126, 127,
+	},
+	.oobfree = {
+		{.offset = 2, .length = 4},
+		{.offset = 16, .length = 7},
+		{.offset = 32, .length = 7},
+		{.offset = 48, .length = 7},
+		{.offset = 64, .length = 7},
+		{.offset = 80, .length = 7},
+		{.offset = 96, .length = 7},
+		{.offset = 112, .length = 7},
+	}
+};
+
 #ifdef CONFIG_MTD_PARTITIONS
 static const char *part_probes[] = { "RedBoot", "cmdlinepart", NULL };
 #endif
@@ -216,9 +244,12 @@ static irqreturn_t mxc_nfc_irq(int irq, void *dev_id)
 {
 	struct mxc_nand_host *host = dev_id;
 
-	disable_irq_nosync(irq);
+	if (!host->check_int(host))
+		return IRQ_NONE;
 
-	wake_up(&host->irq_waitq);
+	host->irq_control(host, 0);
+
+	complete(&host->op_completion);
 
 	return IRQ_HANDLED;
 }
@@ -245,9 +276,52 @@ static int check_int_v1_v2(struct mxc_nand_host *host)
 	if (!(tmp & NFC_V1_V2_CONFIG2_INT))
 		return 0;
 
-	writew(tmp & ~NFC_V1_V2_CONFIG2_INT, NFC_V1_V2_CONFIG2);
+	if (!cpu_is_mx21())
+		writew(tmp & ~NFC_V1_V2_CONFIG2_INT, NFC_V1_V2_CONFIG2);
 
 	return 1;
+}
+
+/*
+ * It has been observed that the i.MX21 cannot read the CONFIG2:INT bit
+ * if interrupts are masked (CONFIG1:INT_MSK is set). To handle this, the
+ * driver can enable/disable the irq line rather than simply masking the
+ * interrupts.
+ */
+static void irq_control_mx21(struct mxc_nand_host *host, int activate)
+{
+	if (activate)
+		enable_irq(host->irq);
+	else
+		disable_irq_nosync(host->irq);
+}
+
+static void irq_control_v1_v2(struct mxc_nand_host *host, int activate)
+{
+	uint16_t tmp;
+
+	tmp = readw(NFC_V1_V2_CONFIG1);
+
+	if (activate)
+		tmp &= ~NFC_V1_V2_CONFIG1_INT_MSK;
+	else
+		tmp |= NFC_V1_V2_CONFIG1_INT_MSK;
+
+	writew(tmp, NFC_V1_V2_CONFIG1);
+}
+
+static void irq_control_v3(struct mxc_nand_host *host, int activate)
+{
+	uint32_t tmp;
+
+	tmp = readl(NFC_V3_CONFIG2);
+
+	if (activate)
+		tmp &= ~NFC_V3_CONFIG2_INT_MSK;
+	else
+		tmp |= NFC_V3_CONFIG2_INT_MSK;
+
+	writel(tmp, NFC_V3_CONFIG2);
 }
 
 /* This function polls the NANDFC to wait for the basic operation to
@@ -259,10 +333,9 @@ static void wait_op_done(struct mxc_nand_host *host, int useirq)
 
 	if (useirq) {
 		if (!host->check_int(host)) {
-
-			enable_irq(host->irq);
-
-			wait_event(host->irq_waitq, host->check_int(host));
+			INIT_COMPLETION(host->op_completion);
+			host->irq_control(host, 1);
+			wait_for_completion(&host->op_completion);
 		}
 	} else {
 		while (max_retries-- > 0) {
@@ -593,9 +666,9 @@ static void mxc_nand_read_buf(struct mtd_info *mtd, u_char *buf, int len)
 
 	n = min(n, len);
 
-	memcpy(buf, host->data_buf + col, len);
+	memcpy(buf, host->data_buf + col, n);
 
-	host->buf_start += len;
+	host->buf_start += n;
 }
 
 /* Used by the upper layer to verify the data in NAND Flash
@@ -674,9 +747,8 @@ static void mxc_do_addr_cycle(struct mtd_info *mtd, int column, int page_addr)
 		/*
 		 * MXC NANDFC can only perform full page+spare or
 		 * spare-only read/write.  When the upper layers
-		 * layers perform a read/write buf operation,
-		 * we will used the saved column address to index into
-		 * the full page.
+		 * perform a read/write buf operation, the saved column
+		  * address is used to index into the full page.
 		 */
 		host->send_addr(host, 0, page_addr == -1);
 		if (mtd->writesize > 512)
@@ -799,6 +871,7 @@ static void preset_v3(struct mtd_info *mtd)
 		NFC_V3_CONFIG2_2CMD_PHASES |
 		NFC_V3_CONFIG2_SPAS(mtd->oobsize >> 1) |
 		NFC_V3_CONFIG2_ST_CMD(0x70) |
+		NFC_V3_CONFIG2_INT_MSK |
 		NFC_V3_CONFIG2_NUM_ADDR_PHASE0;
 
 	if (chip->ecc.mode == NAND_ECC_HW)
@@ -960,7 +1033,7 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 	struct mxc_nand_platform_data *pdata = pdev->dev.platform_data;
 	struct mxc_nand_host *host;
 	struct resource *res;
-	int err = 0, nr_parts = 0;
+	int err = 0, __maybe_unused nr_parts = 0;
 	struct nand_ecclayout *oob_smallpage, *oob_largepage;
 
 	/* Allocate memory for MTD device structure and private data */
@@ -1024,6 +1097,10 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 		host->send_read_id = send_read_id_v1_v2;
 		host->get_dev_status = get_dev_status_v1_v2;
 		host->check_int = check_int_v1_v2;
+		if (cpu_is_mx21())
+			host->irq_control = irq_control_mx21;
+		else
+			host->irq_control = irq_control_v1_v2;
 	}
 
 	if (nfc_is_v21()) {
@@ -1062,6 +1139,7 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 		host->send_read_id = send_read_id_v3;
 		host->check_int = check_int_v3;
 		host->get_dev_status = get_dev_status_v3;
+		host->irq_control = irq_control_v3;
 		oob_smallpage = &nandv2_hw_eccoob_smallpage;
 		oob_largepage = &nandv2_hw_eccoob_largepage;
 	} else
@@ -1093,13 +1171,33 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 		this->options |= NAND_USE_FLASH_BBT;
 	}
 
-	init_waitqueue_head(&host->irq_waitq);
+	init_completion(&host->op_completion);
 
 	host->irq = platform_get_irq(pdev, 0);
+
+	/*
+	 * mask the interrupt. For i.MX21 explicitely call
+	 * irq_control_v1_v2 to use the mask bit. We can't call
+	 * disable_irq_nosync() for an interrupt we do not own yet.
+	 */
+	if (cpu_is_mx21())
+		irq_control_v1_v2(host, 0);
+	else
+		host->irq_control(host, 0);
 
 	err = request_irq(host->irq, mxc_nfc_irq, IRQF_DISABLED, DRIVER_NAME, host);
 	if (err)
 		goto eirq;
+
+	host->irq_control(host, 0);
+
+	/*
+	 * Now that the interrupt is disabled make sure the interrupt
+	 * mask bit is cleared on i.MX21. Otherwise we can't read
+	 * the interrupt status bit on this machine.
+	 */
+	if (cpu_is_mx21())
+		irq_control_v1_v2(host, 1);
 
 	/* first scan to find the device and get the page size */
 	if (nand_scan_ident(mtd, 1, NULL)) {
@@ -1112,6 +1210,8 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 
 	if (mtd->writesize == 2048)
 		this->ecc.layout = oob_largepage;
+	if (nfc_is_v21() && mtd->writesize == 4096)
+		this->ecc.layout = &nandv2_hw_eccoob_4k;
 
 	/* second phase scan */
 	if (nand_scan_tail(mtd)) {

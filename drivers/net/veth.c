@@ -166,10 +166,12 @@ static netdev_tx_t veth_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (!(rcv->flags & IFF_UP))
 		goto tx_drop;
 
-	if (dev->features & NETIF_F_NO_CSUM)
+	/* don't change ip_summed == CHECKSUM_PARTIAL, as that
+	   will cause bad checksum on forwarded packets */
+	if (skb->ip_summed == CHECKSUM_NONE)
 		skb->ip_summed = rcv_priv->ip_summed;
 
-	length = skb->len + ETH_HLEN;
+	length = skb->len;
 	if (dev_forward_skb(rcv, skb) != NET_RX_SUCCESS)
 		goto rx_drop;
 
@@ -250,7 +252,7 @@ static int veth_close(struct net_device *dev)
 
 static int is_valid_veth_mtu(int new_mtu)
 {
-	return (new_mtu >= MIN_MTU && new_mtu <= MAX_MTU);
+	return new_mtu >= MIN_MTU && new_mtu <= MAX_MTU;
 }
 
 static int veth_change_mtu(struct net_device *dev, int new_mtu)
@@ -401,17 +403,6 @@ static int veth_newlink(struct net *src_net, struct net_device *dev,
 	if (tb[IFLA_ADDRESS] == NULL)
 		random_ether_addr(dev->dev_addr);
 
-	if (tb[IFLA_IFNAME])
-		nla_strlcpy(dev->name, tb[IFLA_IFNAME], IFNAMSIZ);
-	else
-		snprintf(dev->name, IFNAMSIZ, DRV_NAME "%%d");
-
-	if (strchr(dev->name, '%')) {
-		err = dev_alloc_name(dev, dev->name);
-		if (err < 0)
-			goto err_alloc_name;
-	}
-
 	err = register_netdevice(dev);
 	if (err < 0)
 		goto err_register_dev;
@@ -431,7 +422,6 @@ static int veth_newlink(struct net *src_net, struct net_device *dev,
 
 err_register_dev:
 	/* nothing to do */
-err_alloc_name:
 err_configure_peer:
 	unregister_netdevice(peer);
 	return err;

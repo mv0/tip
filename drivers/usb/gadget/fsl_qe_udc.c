@@ -2302,9 +2302,10 @@ static irqreturn_t qe_udc_irq(int irq, void *_udc)
 }
 
 /*-------------------------------------------------------------------------
-	Gadget driver register and unregister.
+	Gadget driver probe and unregister.
  --------------------------------------------------------------------------*/
-int usb_gadget_register_driver(struct usb_gadget_driver *driver)
+int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
+		int (*bind)(struct usb_gadget *))
 {
 	int retval;
 	unsigned long flags = 0;
@@ -2315,8 +2316,7 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 
 	if (!driver || (driver->speed != USB_SPEED_FULL
 			&& driver->speed != USB_SPEED_HIGH)
-			|| !driver->bind || !driver->disconnect
-			|| !driver->setup)
+			|| !bind || !driver->disconnect || !driver->setup)
 		return -EINVAL;
 
 	if (udc_controller->driver)
@@ -2332,7 +2332,7 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 	udc_controller->gadget.speed = (enum usb_device_speed)(driver->speed);
 	spin_unlock_irqrestore(&udc_controller->lock, flags);
 
-	retval = driver->bind(&udc_controller->gadget);
+	retval = bind(&udc_controller->gadget);
 	if (retval) {
 		dev_err(udc_controller->dev, "bind to %s --> %d",
 				driver->driver.name, retval);
@@ -2353,7 +2353,7 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 		udc_controller->gadget.name, driver->driver.name);
 	return 0;
 }
-EXPORT_SYMBOL(usb_gadget_register_driver);
+EXPORT_SYMBOL(usb_gadget_probe_driver);
 
 int usb_gadget_unregister_driver(struct usb_gadget_driver *driver)
 {
@@ -2523,14 +2523,16 @@ static void qe_udc_release(struct device *dev)
 }
 
 /* Driver probe functions */
-static int __devinit qe_udc_probe(struct platform_device *ofdev,
-			const struct of_device_id *match)
+static int __devinit qe_udc_probe(struct platform_device *ofdev)
 {
 	struct device_node *np = ofdev->dev.of_node;
 	struct qe_ep *ep;
 	unsigned int ret = 0;
 	unsigned int i;
 	const void *prop;
+
+	if (!ofdev->dev.of_match)
+		return -EINVAL;
 
 	prop = of_get_property(np, "mode", NULL);
 	if (!prop || strcmp(prop, "peripheral"))
@@ -2543,7 +2545,7 @@ static int __devinit qe_udc_probe(struct platform_device *ofdev,
 		return -ENOMEM;
 	}
 
-	udc_controller->soc_type = (unsigned long)match->data;
+	udc_controller->soc_type = (unsigned long)ofdev->dev.of_match->data;
 	udc_controller->usb_regs = of_iomap(np, 0);
 	if (!udc_controller->usb_regs) {
 		ret = -ENOMEM;
@@ -2768,7 +2770,7 @@ static const struct of_device_id qe_udc_match[] __devinitconst = {
 
 MODULE_DEVICE_TABLE(of, qe_udc_match);
 
-static struct of_platform_driver udc_driver = {
+static struct platform_driver udc_driver = {
 	.driver = {
 		.name = (char *)driver_name,
 		.owner = THIS_MODULE,
@@ -2786,12 +2788,12 @@ static int __init qe_udc_init(void)
 {
 	printk(KERN_INFO "%s: %s, %s\n", driver_name, driver_desc,
 			DRIVER_VERSION);
-	return of_register_platform_driver(&udc_driver);
+	return platform_driver_register(&udc_driver);
 }
 
 static void __exit qe_udc_exit(void)
 {
-	of_unregister_platform_driver(&udc_driver);
+	platform_driver_unregister(&udc_driver);
 }
 
 module_init(qe_udc_init);

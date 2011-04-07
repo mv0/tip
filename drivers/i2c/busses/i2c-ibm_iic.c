@@ -41,7 +41,6 @@
 #include <asm/irq.h>
 #include <linux/io.h>
 #include <linux/i2c.h>
-#include <linux/i2c-id.h>
 #include <linux/of_platform.h>
 #include <linux/of_i2c.h>
 
@@ -692,8 +691,7 @@ static int __devinit iic_request_irq(struct platform_device *ofdev,
 /*
  * Register single IIC interface
  */
-static int __devinit iic_probe(struct platform_device *ofdev,
-			       const struct of_device_id *match)
+static int __devinit iic_probe(struct platform_device *ofdev)
 {
 	struct device_node *np = ofdev->dev.of_node;
 	struct ibm_iic_private *dev;
@@ -761,6 +759,9 @@ static int __devinit iic_probe(struct platform_device *ofdev,
 	dev_info(&ofdev->dev, "using %s mode\n",
 		 dev->fast_mode ? "fast (400 kHz)" : "standard (100 kHz)");
 
+	/* Now register all the child nodes */
+	of_i2c_register_devices(adap);
+
 	return 0;
 
 error_cleanup:
@@ -804,7 +805,7 @@ static const struct of_device_id ibm_iic_match[] = {
 	{}
 };
 
-static struct of_platform_driver ibm_iic_driver = {
+static struct platform_driver ibm_iic_driver = {
 	.driver = {
 		.name = "ibm-iic",
 		.owner = THIS_MODULE,
@@ -816,12 +817,12 @@ static struct of_platform_driver ibm_iic_driver = {
 
 static int __init iic_init(void)
 {
-	return of_register_platform_driver(&ibm_iic_driver);
+	return platform_driver_register(&ibm_iic_driver);
 }
 
 static void __exit iic_exit(void)
 {
-	of_unregister_platform_driver(&ibm_iic_driver);
+	platform_driver_unregister(&ibm_iic_driver);
 }
 
 module_init(iic_init);

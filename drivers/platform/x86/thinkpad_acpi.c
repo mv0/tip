@@ -589,6 +589,7 @@ static int acpi_evalf(acpi_handle handle,
 		default:
 			printk(TPACPI_ERR "acpi_evalf() called "
 			       "with invalid format character '%c'\n", c);
+			va_end(ap);
 			return 0;
 		}
 	}
@@ -2274,16 +2275,12 @@ static void tpacpi_input_send_key(const unsigned int scancode)
 	if (keycode != KEY_RESERVED) {
 		mutex_lock(&tpacpi_inputdev_send_mutex);
 
+		input_event(tpacpi_inputdev, EV_MSC, MSC_SCAN, scancode);
 		input_report_key(tpacpi_inputdev, keycode, 1);
-		if (keycode == KEY_UNKNOWN)
-			input_event(tpacpi_inputdev, EV_MSC, MSC_SCAN,
-				    scancode);
 		input_sync(tpacpi_inputdev);
 
+		input_event(tpacpi_inputdev, EV_MSC, MSC_SCAN, scancode);
 		input_report_key(tpacpi_inputdev, keycode, 0);
-		if (keycode == KEY_UNKNOWN)
-			input_event(tpacpi_inputdev, EV_MSC, MSC_SCAN,
-				    scancode);
 		input_sync(tpacpi_inputdev);
 
 		mutex_unlock(&tpacpi_inputdev_send_mutex);
@@ -2410,7 +2407,7 @@ static void hotkey_compare_and_issue_event(struct tp_nvram_state *oldn,
 	 * This code is supposed to duplicate the IBM firmware behaviour:
 	 * - Pressing MUTE issues mute hotkey message, even when already mute
 	 * - Pressing Volume up/down issues volume up/down hotkey messages,
-	 *   even when already at maximum or minumum volume
+	 *   even when already at maximum or minimum volume
 	 * - The act of unmuting issues volume up/down notification,
 	 *   depending which key was used to unmute
 	 *
@@ -2993,7 +2990,7 @@ static void tpacpi_send_radiosw_update(void)
 	 * rfkill input events, or we will race the rfkill core input
 	 * handler.
 	 *
-	 * tpacpi_inputdev_send_mutex works as a syncronization point
+	 * tpacpi_inputdev_send_mutex works as a synchronization point
 	 * for the above.
 	 *
 	 * We optimize to avoid numerous calls to hotkey_get_wlsw.
@@ -3093,7 +3090,8 @@ static const struct tpacpi_quirk tpacpi_hotkey_qtable[] __initconst = {
 	TPACPI_Q_IBM('1', 'D', TPACPI_HK_Q_INIMASK), /* X22, X23, X24 */
 };
 
-typedef u16 tpacpi_keymap_t[TPACPI_HOTKEY_MAP_LEN];
+typedef u16 tpacpi_keymap_entry_t;
+typedef tpacpi_keymap_entry_t tpacpi_keymap_t[TPACPI_HOTKEY_MAP_LEN];
 
 static int __init hotkey_init(struct ibm_init_struct *iibm)
 {
@@ -3230,7 +3228,7 @@ static int __init hotkey_init(struct ibm_init_struct *iibm)
 	};
 
 #define TPACPI_HOTKEY_MAP_SIZE		sizeof(tpacpi_keymap_t)
-#define TPACPI_HOTKEY_MAP_TYPESIZE	sizeof(tpacpi_keymap_t[0])
+#define TPACPI_HOTKEY_MAP_TYPESIZE	sizeof(tpacpi_keymap_entry_t)
 
 	int res, i;
 	int status;
@@ -6108,7 +6106,7 @@ static void tpacpi_brightness_notify_change(void)
 			       BACKLIGHT_UPDATE_HOTKEY);
 }
 
-static struct backlight_ops ibm_backlight_data = {
+static const struct backlight_ops ibm_backlight_data = {
 	.get_brightness = brightness_get,
 	.update_status  = brightness_update_status,
 };
@@ -6309,6 +6307,7 @@ static int __init brightness_init(struct ibm_init_struct *iibm)
 		return 1;
 
 	memset(&props, 0, sizeof(struct backlight_properties));
+	props.type = BACKLIGHT_PLATFORM;
 	props.max_brightness = bright_maxlvl;
 	props.brightness = b & TP_EC_BACKLIGHT_LVLMSK;
 	ibm_backlight_device = backlight_device_register(TPACPI_BACKLIGHT_DEV_NAME,
@@ -6344,7 +6343,7 @@ static int __init brightness_init(struct ibm_init_struct *iibm)
 			"as change notification\n");
 	tpacpi_hotkey_driver_mask_set(hotkey_driver_mask
 				| TP_ACPI_HKEY_BRGHTUP_MASK
-				| TP_ACPI_HKEY_BRGHTDWN_MASK);;
+				| TP_ACPI_HKEY_BRGHTDWN_MASK);
 	return 0;
 }
 
@@ -7192,7 +7191,7 @@ static struct ibm_struct volume_driver_data = {
  * 		TPACPI_FAN_WR_ACPI_FANS (X31/X40/X41)
  *
  *	FIRMWARE BUG: on some models, EC 0x2f might not be initialized at
- *	boot. Apparently the EC does not intialize it, so unless ACPI DSDT
+ *	boot. Apparently the EC does not initialize it, so unless ACPI DSDT
  *	does so, its initial value is meaningless (0x07).
  *
  *	For firmware bugs, refer to:
@@ -8495,7 +8494,6 @@ static void ibm_exit(struct ibm_struct *ibm)
 		acpi_remove_notify_handler(*ibm->acpi->handle,
 					   ibm->acpi->type,
 					   dispatch_acpi_notify);
-		ibm->flags.acpi_notify_installed = 0;
 		ibm->flags.acpi_notify_installed = 0;
 	}
 

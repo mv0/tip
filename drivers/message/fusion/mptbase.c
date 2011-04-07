@@ -5945,8 +5945,10 @@ mpt_findImVolumes(MPT_ADAPTER *ioc)
 		goto out;
 
 	mem = kmalloc(iocpage2sz, GFP_KERNEL);
-	if (!mem)
+	if (!mem) {
+		rc = -ENOMEM;
 		goto out;
+	}
 
 	memcpy(mem, (u8 *)pIoc2, iocpage2sz);
 	ioc->raid_data.pIocPg2 = (IOCPage2_t *) mem;
@@ -7416,7 +7418,12 @@ mpt_display_event_info(MPT_ADAPTER *ioc, EventNotificationReply_t *pEventReply)
 		case MPI_EVENT_SAS_PLS_LR_RATE_3_0:
 			snprintf(evStr, EVENT_DESCR_STR_SZ,
 			   "SAS PHY Link Status: Phy=%d:"
-			   " Rate 3.0 Gpbs",PhyNumber);
+			   " Rate 3.0 Gbps", PhyNumber);
+			break;
+		case MPI_EVENT_SAS_PLS_LR_RATE_6_0:
+			snprintf(evStr, EVENT_DESCR_STR_SZ,
+			   "SAS PHY Link Status: Phy=%d:"
+			   " Rate 6.0 Gbps", PhyNumber);
 			break;
 		default:
 			snprintf(evStr, EVENT_DESCR_STR_SZ,
@@ -7975,7 +7982,7 @@ mpt_spi_log_info(MPT_ADAPTER *ioc, u32 log_info)
 		NULL,						/* 2Eh */
 		NULL,						/* 2Fh */
 		"Compatibility Error: IR Disabled",		/* 30h */
-		"Compatibility Error: Inquiry Comand Failed",	/* 31h */
+		"Compatibility Error: Inquiry Command Failed",	/* 31h */
 		"Compatibility Error: Device not Direct Access "
 		    "Device ",					/* 32h */
 		"Compatibility Error: Removable Device Found",	/* 33h */

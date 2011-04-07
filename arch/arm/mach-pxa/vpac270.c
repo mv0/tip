@@ -26,6 +26,7 @@
 #include <linux/ucb1400.h>
 #include <linux/ata_platform.h>
 #include <linux/regulator/max1586.h>
+#include <linux/i2c/pxa-i2c.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -39,8 +40,6 @@
 #include <mach/pxa27x-udc.h>
 #include <mach/udc.h>
 #include <mach/pata_pxa.h>
-
-#include <plat/i2c.h>
 
 #include "generic.h"
 #include "devices.h"
@@ -240,6 +239,7 @@ static void __init vpac270_onenand_init(void) {}
 #if defined(CONFIG_MMC_PXA) || defined(CONFIG_MMC_PXA_MODULE)
 static struct pxamci_platform_data vpac270_mci_platform_data = {
 	.ocr_mask		= MMC_VDD_32_33 | MMC_VDD_33_34,
+	.gpio_power		= -1,
 	.gpio_card_detect	= GPIO53_VPAC270_SD_DETECT_N,
 	.gpio_card_ro		= GPIO52_VPAC270_SD_READONLY,
 	.detect_delay_ms	= 200,
@@ -572,7 +572,7 @@ static void __init vpac270_lcd_init(void)
 	}
 
 	vpac270_lcd_screen.pxafb_lcd_power = vpac270_lcd_power;
-	set_pxa_fb_info(&vpac270_lcd_screen);
+	pxa_set_fb_info(NULL, &vpac270_lcd_screen);
 	return;
 
 err2:
@@ -717,10 +717,8 @@ static void __init vpac270_init(void)
 }
 
 MACHINE_START(VPAC270, "Voipac PXA270")
-	.phys_io	= 0x40000000,
-	.io_pg_offst	= (io_p2v(0x40000000) >> 18) & 0xfffc,
 	.boot_params	= 0xa0000100,
-	.map_io		= pxa_map_io,
+	.map_io		= pxa27x_map_io,
 	.init_irq	= pxa27x_init_irq,
 	.timer		= &pxa_timer,
 	.init_machine	= vpac270_init

@@ -158,6 +158,13 @@ ieee80211_regdomain *ath_world_regdomain(struct ath_regulatory *reg)
 	}
 }
 
+bool ath_is_49ghz_allowed(u16 regdomain)
+{
+	/* possibly more */
+	return regdomain == MKK9_MKKC;
+}
+EXPORT_SYMBOL(ath_is_49ghz_allowed);
+
 /* Frequency is one where radar detection is required */
 static bool ath_is_radar_freq(u16 center_freq)
 {
@@ -341,6 +348,14 @@ int ath_reg_notifier_apply(struct wiphy *wiphy,
 {
 	/* We always apply this */
 	ath_reg_apply_radar_flags(wiphy);
+
+	/*
+	 * This would happen when we have sent a custom regulatory request
+	 * a world regulatory domain and the scheduler hasn't yet processed
+	 * any pending requests in the queue.
+	 */
+	if (!request)
+		return 0;
 
 	switch (request->initiator) {
 	case NL80211_REGDOM_SET_BY_DRIVER:

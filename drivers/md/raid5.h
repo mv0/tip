@@ -275,6 +275,7 @@ struct r6_state {
 				    * filling
 				    */
 #define R5_Wantdrain	13 /* dev->towrite needs to be drained */
+#define R5_WantFUA	14	/* Write should be FUA */
 /*
  * Write method
  */
@@ -502,6 +503,6 @@ static inline int algorithm_is_DDF(int layout)
 }
 
 extern int md_raid5_congested(mddev_t *mddev, int bits);
-extern void md_raid5_unplug_device(raid5_conf_t *conf);
+extern void md_raid5_kick_device(raid5_conf_t *conf);
 extern int raid5_set_cache_size(mddev_t *mddev, int size);
 #endif

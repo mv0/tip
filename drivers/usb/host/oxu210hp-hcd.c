@@ -451,9 +451,9 @@ static void ehci_hub_descriptor(struct oxu_hcd *oxu,
 	temp = 1 + (ports / 8);
 	desc->bDescLength = 7 + 2 * temp;
 
-	/* two bitmaps:  ports removable, and usb 1.0 legacy PortPwrCtrlMask */
-	memset(&desc->bitmap[0], 0, temp);
-	memset(&desc->bitmap[temp], 0xff, temp);
+	/* ports removable, and usb 1.0 legacy PortPwrCtrlMask */
+	memset(&desc->u.hs.DeviceRemovable[0], 0, temp);
+	memset(&desc->u.hs.DeviceRemovable[temp], 0xff, temp);
 
 	temp = 0x0008;			/* per-port overcurrent reporting */
 	if (HCS_PPC(oxu->hcs_params))
@@ -544,8 +544,6 @@ static void oxu_buf_free(struct oxu_hcd *oxu, struct ehci_qtd *qtd)
 	qtd->buffer = NULL;
 
 	spin_unlock(&oxu->mem_lock);
-
-	return;
 }
 
 static inline void ehci_qtd_init(struct ehci_qtd *qtd, dma_addr_t dma)
@@ -571,8 +569,6 @@ static inline void oxu_qtd_free(struct oxu_hcd *oxu, struct ehci_qtd *qtd)
 	oxu->qtd_used[index] = 0;
 
 	spin_unlock(&oxu->mem_lock);
-
-	return;
 }
 
 static struct ehci_qtd *ehci_qtd_alloc(struct oxu_hcd *oxu)
@@ -615,8 +611,6 @@ static void oxu_qh_free(struct oxu_hcd *oxu, struct ehci_qh *qh)
 	oxu->qh_used[index] = 0;
 
 	spin_unlock(&oxu->mem_lock);
-
-	return;
 }
 
 static void qh_destroy(struct kref *kref)
@@ -693,8 +687,6 @@ static void oxu_murb_free(struct oxu_hcd *oxu, struct oxu_murb *murb)
 	oxu->murb_used[index] = 0;
 
 	spin_unlock(&oxu->mem_lock);
-
-	return;
 }
 
 static struct oxu_murb *oxu_murb_alloc(struct oxu_hcd *oxu)
@@ -3070,7 +3062,6 @@ nogood:
 	ep->hcpriv = NULL;
 done:
 	spin_unlock_irqrestore(&oxu->lock, flags);
-	return;
 }
 
 static int oxu_get_frame(struct usb_hcd *hcd)
@@ -3103,7 +3094,7 @@ static int oxu_hub_status_data(struct usb_hcd *hcd, char *buf)
 
 	/* Some boards (mostly VIA?) report bogus overcurrent indications,
 	 * causing massive log spam unless we completely ignore them.  It
-	 * may be relevant that VIA VT8235 controlers, where PORT_POWER is
+	 * may be relevant that VIA VT8235 controllers, where PORT_POWER is
 	 * always set, seem to clear PORT_OCC and PORT_CSC when writing to
 	 * PORT_POWER; that's surprising, but maybe within-spec.
 	 */
@@ -3696,7 +3687,7 @@ static void oxu_configuration(struct platform_device *pdev, void *base)
 static int oxu_verify_id(struct platform_device *pdev, void *base)
 {
 	u32 id;
-	char *bo[] = {
+	static const char * const bo[] = {
 		"reserved",
 		"128-pin LQFP",
 		"84-pin TFBGA",
@@ -3841,7 +3832,7 @@ static int oxu_drv_probe(struct platform_device *pdev)
 		return -EBUSY;
 	}
 
-	ret = set_irq_type(irq, IRQF_TRIGGER_FALLING);
+	ret = irq_set_irq_type(irq, IRQF_TRIGGER_FALLING);
 	if (ret) {
 		dev_err(&pdev->dev, "error setting irq type\n");
 		ret = -EFAULT;

@@ -163,7 +163,7 @@ static int do_kimage_alloc(struct kimage **rimage, unsigned long entry,
 	 * just verifies it is an address we can use.
 	 *
 	 * Since the kernel does everything in page size chunks ensure
-	 * the destination addreses are page aligned.  Too many
+	 * the destination addresses are page aligned.  Too many
 	 * special cases crop of when we don't do this.  The most
 	 * insidious is getting overlapping destination addresses
 	 * simply because addresses are changed to page size
@@ -816,7 +816,7 @@ static int kimage_load_normal_segment(struct kimage *image,
 
 		ptr = kmap(page);
 		/* Start with a clear page */
-		memset(ptr, 0, PAGE_SIZE);
+		clear_page(ptr);
 		ptr += maddr & ~PAGE_MASK;
 		mchunk = PAGE_SIZE - (maddr & ~PAGE_MASK);
 		if (mchunk > mbytes)
@@ -1099,7 +1099,8 @@ size_t crash_get_memory_size(void)
 	return size;
 }
 
-static void free_reserved_phys_range(unsigned long begin, unsigned long end)
+void __weak crash_free_reserved_phys_range(unsigned long begin,
+					   unsigned long end)
 {
 	unsigned long addr;
 
@@ -1135,7 +1136,7 @@ int crash_shrink_memory(unsigned long new_size)
 	start = roundup(start, PAGE_SIZE);
 	end = roundup(start + new_size, PAGE_SIZE);
 
-	free_reserved_phys_range(end, crashk_res.end);
+	crash_free_reserved_phys_range(end, crashk_res.end);
 
 	if ((start == end) && (crashk_res.parent != NULL))
 		release_resource(&crashk_res);

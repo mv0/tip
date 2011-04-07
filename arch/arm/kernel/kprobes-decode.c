@@ -594,7 +594,8 @@ static void __kprobes emulate_ldr(struct kprobe *p, struct pt_regs *regs)
 	long cpsr = regs->ARM_cpsr;
 
 	fnr.dr = insnslot_llret_3arg_rflags(rnv, 0, rmv, cpsr, i_fn);
-	regs->uregs[rn] = fnr.r0;  /* Save Rn in case of writeback. */
+	if (rn != 15)
+		regs->uregs[rn] = fnr.r0;  /* Save Rn in case of writeback. */
 	rdv = fnr.r1;
 
 	if (rd == 15) {
@@ -622,10 +623,11 @@ static void __kprobes emulate_str(struct kprobe *p, struct pt_regs *regs)
 	long rdv = (rd == 15) ? iaddr + str_pc_offset : regs->uregs[rd];
 	long rnv = (rn == 15) ? iaddr +  8 : regs->uregs[rn];
 	long rmv = regs->uregs[rm];  /* rm/rmv may be invalid, don't care. */
+	long rnv_wb;
 
-	/* Save Rn in case of writeback. */
-	regs->uregs[rn] =
-		insnslot_3arg_rflags(rnv, rdv, rmv, regs->ARM_cpsr, i_fn);
+	rnv_wb = insnslot_3arg_rflags(rnv, rdv, rmv, regs->ARM_cpsr, i_fn);
+	if (rn != 15)
+		regs->uregs[rn] = rnv_wb;  /* Save Rn in case of writeback. */
 }
 
 static void __kprobes emulate_mrrc(struct kprobe *p, struct pt_regs *regs)
@@ -1162,11 +1164,12 @@ space_cccc_001x(kprobe_opcode_t insn, struct arch_specific_insn *asi)
 {
 	/*
 	 * MSR   : cccc 0011 0x10 xxxx xxxx xxxx xxxx xxxx
-	 * Undef : cccc 0011 0x00 xxxx xxxx xxxx xxxx xxxx
+	 * Undef : cccc 0011 0100 xxxx xxxx xxxx xxxx xxxx
 	 * ALU op with S bit and Rd == 15 :
 	 *	   cccc 001x xxx1 xxxx 1111 xxxx xxxx xxxx
 	 */
-	if ((insn & 0x0f900000) == 0x03200000 ||	/* MSR & Undef */
+	if ((insn & 0x0fb00000) == 0x03200000 ||	/* MSR */
+	    (insn & 0x0ff00000) == 0x03400000 ||	/* Undef */
 	    (insn & 0x0e10f000) == 0x0210f000)		/* ALU s-bit, R15  */
 		return INSN_REJECTED;
 
@@ -1177,7 +1180,7 @@ space_cccc_001x(kprobe_opcode_t insn, struct arch_specific_insn *asi)
 	 * *S (bit 20) updates condition codes
 	 * ADC/SBC/RSC reads the C flag
 	 */
-	insn &= 0xfff00fff;	/* Rn = r0, Rd = r0 */
+	insn &= 0xffff0fff;	/* Rd = r0 */
 	asi->insn[0] = insn;
 	asi->insn_handler = (insn & (1 << 20)) ?  /* S-bit */
 			emulate_alu_imm_rwflags : emulate_alu_imm_rflags;
@@ -1436,7 +1439,7 @@ arm_kprobe_decode_insn(kprobe_opcode_t insn, struct arch_specific_insn *asi)
 
 		return space_cccc_1100_010x(insn, asi);
 
-	} else if ((insn & 0x0e000000) == 0x0c400000) {
+	} else if ((insn & 0x0e000000) == 0x0c000000) {
 
 		return space_cccc_110x(insn, asi);
 

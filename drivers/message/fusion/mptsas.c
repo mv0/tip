@@ -1146,7 +1146,7 @@ mptsas_target_reset_queue(MPT_ADAPTER *ioc,
  *
  * This function will delete scheduled target reset from the list and
  * try to send next target reset. This will be called from completion
- * context of any Task managment command.
+ * context of any Task management command.
  */
 
 void
@@ -1889,7 +1889,7 @@ mptsas_slave_alloc(struct scsi_device *sdev)
 }
 
 static int
-mptsas_qcmd(struct scsi_cmnd *SCpnt, void (*done)(struct scsi_cmnd *))
+mptsas_qcmd_lck(struct scsi_cmnd *SCpnt, void (*done)(struct scsi_cmnd *))
 {
 	MPT_SCSI_HOST	*hd;
 	MPT_ADAPTER	*ioc;
@@ -1912,6 +1912,8 @@ mptsas_qcmd(struct scsi_cmnd *SCpnt, void (*done)(struct scsi_cmnd *))
 
 	return mptscsih_qcmd(SCpnt,done);
 }
+
+static DEF_SCSI_QCMD(mptsas_qcmd)
 
 /**
  *	mptsas_mptsas_eh_timed_out - resets the scsi_cmnd timeout
@@ -1971,7 +1973,6 @@ static struct scsi_host_template mptsas_driver_template = {
 	.change_queue_depth 		= mptscsih_change_queue_depth,
 	.eh_abort_handler		= mptscsih_abort,
 	.eh_device_reset_handler	= mptscsih_dev_reset,
-	.eh_bus_reset_handler		= mptscsih_bus_reset,
 	.eh_host_reset_handler		= mptscsih_host_reset,
 	.bios_param			= mptscsih_bios_param,
 	.can_queue			= MPT_SAS_CAN_QUEUE,
@@ -3061,6 +3062,9 @@ static int mptsas_probe_one_phy(struct device *dev,
 	case MPI_SAS_IOUNIT0_RATE_3_0:
 		phy->negotiated_linkrate = SAS_LINK_RATE_3_0_GBPS;
 		break;
+	case MPI_SAS_IOUNIT0_RATE_6_0:
+		phy->negotiated_linkrate = SAS_LINK_RATE_6_0_GBPS;
+		break;
 	case MPI_SAS_IOUNIT0_RATE_SATA_OOB_COMPLETE:
 	case MPI_SAS_IOUNIT0_RATE_UNKNOWN:
 	default:
@@ -3689,7 +3693,8 @@ mptsas_send_link_status_event(struct fw_event_work *fw_event)
 	}
 
 	if (link_rate == MPI_SAS_IOUNIT0_RATE_1_5 ||
-	    link_rate == MPI_SAS_IOUNIT0_RATE_3_0) {
+	    link_rate == MPI_SAS_IOUNIT0_RATE_3_0 ||
+	    link_rate == MPI_SAS_IOUNIT0_RATE_6_0) {
 
 		if (!port_info) {
 			if (ioc->old_sas_discovery_protocal) {

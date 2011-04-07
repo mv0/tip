@@ -71,21 +71,20 @@ broken.
   ===========================================================================*/
 
 static DEFINE_PCI_DEVICE_TABLE(me4000_pci_table) = {
-	{
-	PCI_VENDOR_ID_MEILHAUS, 0x4650, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4660, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4661, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4662, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4663, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4670, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4671, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4672, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4673, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4680, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4681, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4682, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	PCI_VENDOR_ID_MEILHAUS, 0x4683, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, {
-	0}
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4650) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4660) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4661) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4662) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4663) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4670) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4671) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4672) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4673) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4680) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4681) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4682) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MEILHAUS, 0x4683) },
+	{ 0 }
 };
 
 MODULE_DEVICE_TABLE(pci, me4000_pci_table);
@@ -120,10 +119,10 @@ static int me4000_attach(struct comedi_device *dev,
 			 struct comedi_devconfig *it);
 static int me4000_detach(struct comedi_device *dev);
 static struct comedi_driver driver_me4000 = {
-driver_name: "me4000",
-module : THIS_MODULE,
-attach : me4000_attach,
-detach : me4000_detach,
+	.driver_name = "me4000",
+	.module = THIS_MODULE,
+	.attach = me4000_attach,
+	.detach = me4000_detach,
 };
 
 /*-----------------------------------------------------------------------------

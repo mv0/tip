@@ -88,16 +88,14 @@ static const char *ipg_brand_name[] = {
 	"IC PLUS IP1000 1000/100/10 based NIC",
 	"Sundance Technology ST2021 based NIC",
 	"Tamarack Microelectronics TC9020/9021 based NIC",
-	"Tamarack Microelectronics TC9020/9021 based NIC",
 	"D-Link NIC IP1000A"
 };
 
 static DEFINE_PCI_DEVICE_TABLE(ipg_pci_tbl) = {
 	{ PCI_VDEVICE(SUNDANCE,	0x1023), 0 },
 	{ PCI_VDEVICE(SUNDANCE,	0x2021), 1 },
-	{ PCI_VDEVICE(SUNDANCE,	0x1021), 2 },
-	{ PCI_VDEVICE(DLINK,	0x9021), 3 },
-	{ PCI_VDEVICE(DLINK,	0x4020), 4 },
+	{ PCI_VDEVICE(DLINK,	0x9021), 2 },
+	{ PCI_VDEVICE(DLINK,	0x4020), 3 },
 	{ 0, }
 };
 
@@ -1213,7 +1211,7 @@ static void ipg_nic_rx_with_start_and_end(struct net_device *dev,
 
 	skb_put(skb, framelen);
 	skb->protocol = eth_type_trans(skb, dev);
-	skb->ip_summed = CHECKSUM_NONE;
+	skb_checksum_none_assert(skb);
 	netif_rx(skb);
 	sp->rx_buff[entry] = NULL;
 }
@@ -1278,7 +1276,7 @@ static void ipg_nic_rx_with_end(struct net_device *dev,
 				jumbo->skb->protocol =
 				    eth_type_trans(jumbo->skb, dev);
 
-				jumbo->skb->ip_summed = CHECKSUM_NONE;
+				skb_checksum_none_assert(jumbo->skb);
 				netif_rx(jumbo->skb);
 			}
 		}
@@ -1476,7 +1474,7 @@ static int ipg_nic_rx(struct net_device *dev)
 			 * IP/TCP/UDP frame was received. Let the
 			 * upper layer decide.
 			 */
-			skb->ip_summed = CHECKSUM_NONE;
+			skb_checksum_none_assert(skb);
 
 			/* Hand off frame for higher layer processing.
 			 * The function netif_rx() releases the sk_buff
@@ -2027,7 +2025,6 @@ static void ipg_init_mii(struct net_device *dev)
 
 	if (phyaddr != 0x1f) {
 		u16 mii_phyctrl, mii_1000cr;
-		u8 revisionid = 0;
 
 		mii_1000cr  = mdio_read(dev, phyaddr, MII_CTRL1000);
 		mii_1000cr |= ADVERTISE_1000FULL | ADVERTISE_1000HALF |
@@ -2037,8 +2034,7 @@ static void ipg_init_mii(struct net_device *dev)
 		mii_phyctrl = mdio_read(dev, phyaddr, MII_BMCR);
 
 		/* Set default phyparam */
-		pci_read_config_byte(sp->pdev, PCI_REVISION_ID, &revisionid);
-		ipg_set_phy_default_param(revisionid, dev, phyaddr);
+		ipg_set_phy_default_param(sp->pdev->revision, dev, phyaddr);
 
 		/* Reset PHY */
 		mii_phyctrl |= BMCR_RESET | BMCR_ANRESTART;

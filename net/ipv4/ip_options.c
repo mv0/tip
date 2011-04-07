@@ -140,11 +140,11 @@ int ip_options_echo(struct ip_options * dopt, struct sk_buff * skb)
 				} else {
 					dopt->ts_needtime = 0;
 
-					if (soffset + 8 <= optlen) {
+					if (soffset + 7 <= optlen) {
 						__be32 addr;
 
-						memcpy(&addr, sptr+soffset-1, 4);
-						if (inet_addr_type(dev_net(skb_dst(skb)->dev), addr) != RTN_LOCAL) {
+						memcpy(&addr, dptr+soffset-1, 4);
+						if (inet_addr_type(dev_net(skb_dst(skb)->dev), addr) != RTN_UNICAST) {
 							dopt->ts_needtime = 1;
 							soffset += 8;
 						}
@@ -466,7 +466,7 @@ error:
 	}
 	return -EINVAL;
 }
-
+EXPORT_SYMBOL(ip_options_compile);
 
 /*
  *	Undo all the changes done by ip_options_compile().
@@ -646,3 +646,4 @@ int ip_options_rcv_srr(struct sk_buff *skb)
 	}
 	return 0;
 }
+EXPORT_SYMBOL(ip_options_rcv_srr);

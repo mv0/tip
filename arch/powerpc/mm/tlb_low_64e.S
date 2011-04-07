@@ -138,8 +138,11 @@
 	cmpldi	cr0,r15,0			/* Check for user region */
 	std	r14,EX_TLB_ESR(r12)		/* write crazy -1 to frame */
 	beq	normal_tlb_miss
+
+	li	r11,_PAGE_PRESENT|_PAGE_BAP_SX	/* Base perm */
+	oris	r11,r11,_PAGE_ACCESSED@h
 	/* XXX replace the RMW cycles with immediate loads + writes */
-1:	mfspr	r10,SPRN_MAS1
+	mfspr	r10,SPRN_MAS1
 	cmpldi	cr0,r15,8			/* Check for vmalloc region */
 	rlwinm	r10,r10,0,16,1			/* Clear TID */
 	mtspr	SPRN_MAS1,r10
@@ -428,7 +431,7 @@ virt_page_table_tlb_miss_fault:
 	 * The thing is, we know that in normal circumstances, this is
 	 * always called as a second level tlb miss for SW load or as a first
 	 * level TLB miss for HW load, so we should be able to peek at the
-	 * relevant informations in the first exception frame in the PACA.
+	 * relevant information in the first exception frame in the PACA.
 	 *
 	 * However, we do need to double check that, because we may just hit
 	 * a stray kernel pointer or a userland attack trying to hit those

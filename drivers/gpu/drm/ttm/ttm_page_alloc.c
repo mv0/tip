@@ -38,6 +38,7 @@
 #include <linux/mm.h>
 #include <linux/seq_file.h> /* for seq_printf */
 #include <linux/slab.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/atomic.h>
 
@@ -69,7 +70,7 @@ struct ttm_page_pool {
 	spinlock_t		lock;
 	bool			fill_lock;
 	struct list_head	list;
-	int			gfp_flags;
+	gfp_t			gfp_flags;
 	unsigned		npages;
 	char			*name;
 	unsigned long		nfrees;
@@ -475,7 +476,7 @@ static void ttm_handle_caching_state_failure(struct list_head *pages,
  * This function is reentrant if caller updates count depending on number of
  * pages returned in pages array.
  */
-static int ttm_alloc_new_pages(struct list_head *pages, int gfp_flags,
+static int ttm_alloc_new_pages(struct list_head *pages, gfp_t gfp_flags,
 		int ttm_flags, enum ttm_caching_state cstate, unsigned count)
 {
 	struct page **caching_array;
@@ -662,11 +663,12 @@ out:
  * cached pages.
  */
 int ttm_get_pages(struct list_head *pages, int flags,
-		enum ttm_caching_state cstate, unsigned count)
+		  enum ttm_caching_state cstate, unsigned count,
+		  dma_addr_t *dma_address)
 {
 	struct ttm_page_pool *pool = ttm_get_pool(flags, cstate);
 	struct page *p = NULL;
-	int gfp_flags = GFP_USER;
+	gfp_t gfp_flags = GFP_USER;
 	int r;
 
 	/* set zero flag for page allocation if required */
@@ -681,14 +683,22 @@ int ttm_get_pages(struct list_head *pages, int flags,
 			gfp_flags |= GFP_HIGHUSER;
 
 		for (r = 0; r < count; ++r) {
-			p = alloc_page(gfp_flags);
+			if ((flags & TTM_PAGE_FLAG_DMA32) && dma_address) {
+				void *addr;
+				addr = dma_alloc_coherent(NULL, PAGE_SIZE,
+							  &dma_address[r],
+							  gfp_flags);
+				if (addr == NULL)
+					return -ENOMEM;
+				p = virt_to_page(addr);
+			} else
+				p = alloc_page(gfp_flags);
 			if (!p) {
 
 				printk(KERN_ERR TTM_PFX
 				       "Unable to allocate page.");
 				return -ENOMEM;
 			}
-
 			list_add(&p->lru, pages);
 		}
 		return 0;
@@ -720,7 +730,7 @@ int ttm_get_pages(struct list_head *pages, int flags,
 			printk(KERN_ERR TTM_PFX
 			       "Failed to allocate extra pages "
 			       "for large request.");
-			ttm_put_pages(pages, 0, flags, cstate);
+			ttm_put_pages(pages, 0, flags, cstate, NULL);
 			return r;
 		}
 	}
@@ -731,17 +741,29 @@ int ttm_get_pages(struct list_head *pages, int flags,
 
 /* Put all pages in pages list to correct pool to wait for reuse */
 void ttm_put_pages(struct list_head *pages, unsigned page_count, int flags,
-		enum ttm_caching_state cstate)
+		   enum ttm_caching_state cstate, dma_addr_t *dma_address)
 {
 	unsigned long irq_flags;
 	struct ttm_page_pool *pool = ttm_get_pool(flags, cstate);
 	struct page *p, *tmp;
+	unsigned r;
 
 	if (pool == NULL) {
 		/* No pool for this memory type so free the pages */
 
+		r = page_count-1;
 		list_for_each_entry_safe(p, tmp, pages, lru) {
-			__free_page(p);
+			if ((flags & TTM_PAGE_FLAG_DMA32) && dma_address) {
+				void *addr = page_address(p);
+				WARN_ON(!addr || !dma_address[r]);
+				if (addr)
+					dma_free_coherent(NULL, PAGE_SIZE,
+							  addr,
+							  dma_address[r]);
+				dma_address[r] = 0;
+			} else
+				__free_page(p);
+			r--;
 		}
 		/* Make the pages list empty */
 		INIT_LIST_HEAD(pages);
@@ -818,7 +840,7 @@ int ttm_page_alloc_init(struct ttm_mem_global *glob, unsigned max_pages)
 	return 0;
 }
 
-void ttm_page_alloc_fini()
+void ttm_page_alloc_fini(void)
 {
 	int i;
 

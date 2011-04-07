@@ -1366,7 +1366,7 @@ void RTMPResumeMsduTransmission(struct rt_rtmp_adapter *pAd)
 	/* R66 should not be 0 */
 	if (pAd->BbpTuning.R66CurrentValue == 0) {
 		pAd->BbpTuning.R66CurrentValue = 0x38;
-		DBGPRINT_ERR(("RTMPResumeMsduTransmission, R66CurrentValue=0...\n"));
+		DBGPRINT_ERR("RTMPResumeMsduTransmission, R66CurrentValue=0...\n");
 	}
 
 	RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R66,
@@ -1481,7 +1481,7 @@ u32 deaggregate_AMSDU_announce(struct rt_rtmp_adapter *pAd,
 	return nMSDU;
 }
 
-u32 BA_Reorder_AMSDU_Annnounce(struct rt_rtmp_adapter *pAd, void *pPacket)
+u32 BA_Reorder_AMSDU_Announce(struct rt_rtmp_adapter *pAd, void *pPacket)
 {
 	u8 *pData;
 	u16 DataSize;

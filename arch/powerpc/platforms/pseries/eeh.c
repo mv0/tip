@@ -21,8 +21,6 @@
  * Please address comments and feedback to Linas Vepstas <linas@austin.ibm.com>
  */
 
-#undef DEBUG
-
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/list.h>
@@ -878,7 +876,7 @@ void eeh_restore_bars(struct pci_dn *pdn)
  *
  * Save the values of the device bars. Unlike the restore
  * routine, this routine is *not* recursive. This is because
- * PCI devices are added individuallly; but, for the restore,
+ * PCI devices are added individually; but, for the restore,
  * an entire slot is reset at a time.
  */
 static void eeh_save_bars(struct pci_dn *pdn)

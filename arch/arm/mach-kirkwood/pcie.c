@@ -18,8 +18,16 @@
 #include <mach/bridge-regs.h>
 #include "common.h"
 
+void kirkwood_enable_pcie(void)
+{
+	u32 curr = readl(CLOCK_GATING_CTRL);
+	if (!(curr & CGC_PEX0))
+		writel(curr | CGC_PEX0, CLOCK_GATING_CTRL);
+}
+
 void __init kirkwood_pcie_id(u32 *dev, u32 *rev)
 {
+	kirkwood_enable_pcie();
 	*dev = orion_pcie_dev_id((void __iomem *)PCIE_VIRT_BASE);
 	*rev = orion_pcie_rev((void __iomem *)PCIE_VIRT_BASE);
 }
@@ -117,7 +125,7 @@ static void __init pcie0_ioresources_init(struct pcie_port *pp)
 	 * IORESOURCE_IO
 	 */
 	pp->res[0].name = "PCIe 0 I/O Space";
-	pp->res[0].start = KIRKWOOD_PCIE_IO_PHYS_BASE;
+	pp->res[0].start = KIRKWOOD_PCIE_IO_BUS_BASE;
 	pp->res[0].end = pp->res[0].start + KIRKWOOD_PCIE_IO_SIZE - 1;
 	pp->res[0].flags = IORESOURCE_IO;
 
@@ -139,7 +147,7 @@ static void __init pcie1_ioresources_init(struct pcie_port *pp)
 	 * IORESOURCE_IO
 	 */
 	pp->res[0].name = "PCIe 1 I/O Space";
-	pp->res[0].start = KIRKWOOD_PCIE1_IO_PHYS_BASE;
+	pp->res[0].start = KIRKWOOD_PCIE1_IO_BUS_BASE;
 	pp->res[0].end = pp->res[0].start + KIRKWOOD_PCIE1_IO_SIZE - 1;
 	pp->res[0].flags = IORESOURCE_IO;
 

@@ -1,5 +1,6 @@
 config ACPI_APEI
 	bool "ACPI Platform Error Interface (APEI)"
+	select PSTORE
 	depends on X86
 	help
 	  APEI allows to report errors (for example from the chipset)
@@ -21,6 +22,13 @@ config ACPI_APEI_GHES
 	  by firmware to produce more valuable hardware error
 	  information for Linux.
 
+config ACPI_APEI_PCIEAER
+	bool "APEI PCIe AER logging/recovering support"
+	depends on ACPI_APEI && PCIEAER
+	help
+	  PCIe AER errors may be reported via APEI firmware first mode.
+	  Turn on this option to enable the corresponding support.
+
 config ACPI_APEI_EINJ
 	tristate "APEI Error INJection (EINJ)"
 	depends on ACPI_APEI && DEBUG_FS
@@ -34,6 +42,6 @@ config ACPI_APEI_ERST_DEBUG
 	depends on ACPI_APEI
 	help
 	  ERST is a way provided by APEI to save and retrieve hardware
-	  error infomation to and from a persistent store. Enable this
+	  error information to and from a persistent store. Enable this
 	  if you want to debugging and testing the ERST kernel support
 	  and firmware implementation.

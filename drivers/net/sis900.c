@@ -36,7 +36,7 @@
    Rev 1.07.06 Nov.  7 2000 Jeff Garzik <jgarzik@pobox.com> some bug fix and cleaning
    Rev 1.07.05 Nov.  6 2000 metapirat<metapirat@gmx.de> contribute media type select by ifconfig
    Rev 1.07.04 Sep.  6 2000 Lei-Chun Chang added ICS1893 PHY support
-   Rev 1.07.03 Aug. 24 2000 Lei-Chun Chang (lcchang@sis.com.tw) modified 630E eqaulizer workaround rule
+   Rev 1.07.03 Aug. 24 2000 Lei-Chun Chang (lcchang@sis.com.tw) modified 630E equalizer workaround rule
    Rev 1.07.01 Aug. 08 2000 Ollie Lho minor update for SiS 630E and SiS 630E A1
    Rev 1.07    Mar. 07 2000 Ollie Lho bug fix in Rx buffer ring
    Rev 1.06.04 Feb. 11 2000 Jeff Garzik <jgarzik@pobox.com> softnet and init for kernel 2.4
@@ -495,7 +495,7 @@ static int __devinit sis900_probe(struct pci_dev *pci_dev,
 	sis_priv->mii_info.reg_num_mask = 0x1f;
 
 	/* Get Mac address according to the chip revision */
-	pci_read_config_byte(pci_dev, PCI_CLASS_REVISION, &(sis_priv->chipset_rev));
+	sis_priv->chipset_rev = pci_dev->revision;
 	if(netif_msg_probe(sis_priv))
 		printk(KERN_DEBUG "%s: detected revision %2.2x, "
 				"trying to get MAC address...\n",
@@ -532,7 +532,7 @@ static int __devinit sis900_probe(struct pci_dev *pci_dev,
 	/* save our host bridge revision */
 	dev = pci_get_device(PCI_VENDOR_ID_SI, PCI_DEVICE_ID_SI_630, NULL);
 	if (dev) {
-		pci_read_config_byte(dev, PCI_CLASS_REVISION, &sis_priv->host_bridge_rev);
+		sis_priv->host_bridge_rev = dev->revision;
 		pci_dev_put(dev);
 	}
 
@@ -832,7 +832,7 @@ static u16 __devinit read_eeprom(long ioaddr, int location)
 	outl(0, ee_addr);
 	eeprom_delay();
 
-	return (retval);
+	return retval;
 }
 
 /* Read and write the MII management registers using software-generated
@@ -1042,7 +1042,7 @@ sis900_open(struct net_device *net_dev)
 	init_timer(&sis_priv->timer);
 	sis_priv->timer.expires = jiffies + HZ;
 	sis_priv->timer.data = (unsigned long)net_dev;
-	sis_priv->timer.function = &sis900_timer;
+	sis_priv->timer.function = sis900_timer;
 	add_timer(&sis_priv->timer);
 
 	return 0;
@@ -1777,6 +1777,7 @@ static int sis900_rx(struct net_device *net_dev)
 					      "cur_rx:%4.4d, dirty_rx:%4.4d\n",
 					      net_dev->name, sis_priv->cur_rx,
 					      sis_priv->dirty_rx);
+				dev_kfree_skb(skb);
 				break;
 			}
 
@@ -2247,9 +2248,9 @@ static inline u16 sis900_mcast_bitnr(u8 *addr, u8 revision)
 
 	/* leave 8 or 7 most siginifant bits */
 	if ((revision >= SIS635A_900_REV) || (revision == SIS900B_900_REV))
-		return ((int)(crc >> 24));
+		return (int)(crc >> 24);
 	else
-		return ((int)(crc >> 25));
+		return (int)(crc >> 25);
 }
 
 /**

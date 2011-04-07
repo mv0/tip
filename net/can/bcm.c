@@ -125,7 +125,7 @@ struct bcm_sock {
 	struct list_head tx_ops;
 	unsigned long dropped_usr_msgs;
 	struct proc_dir_entry *bcm_proc_read;
-	char procname [9]; /* pointer printed in ASCII with \0 */
+	char procname [32]; /* inode number in decimal with \0 */
 };
 
 static inline struct bcm_sock *bcm_sk(const struct sock *sk)
@@ -1256,6 +1256,9 @@ static int bcm_sendmsg(struct kiocb *iocb, struct socket *sock,
 		struct sockaddr_can *addr =
 			(struct sockaddr_can *)msg->msg_name;
 
+		if (msg->msg_namelen < sizeof(*addr))
+			return -EINVAL;
+
 		if (addr->can_family != AF_CAN)
 			return -EINVAL;
 
@@ -1521,7 +1524,7 @@ static int bcm_connect(struct socket *sock, struct sockaddr *uaddr, int len,
 
 	if (proc_dir) {
 		/* unique socket address as filename */
-		sprintf(bo->procname, "%p", sock);
+		sprintf(bo->procname, "%lu", sock_i_ino(sk));
 		bo->bcm_proc_read = proc_create_data(bo->procname, 0644,
 						     proc_dir,
 						     &bcm_proc_fops, sk);
@@ -1566,7 +1569,7 @@ static int bcm_recvmsg(struct kiocb *iocb, struct socket *sock,
 	return size;
 }
 
-static struct proto_ops bcm_ops __read_mostly = {
+static const struct proto_ops bcm_ops = {
 	.family        = PF_CAN,
 	.release       = bcm_release,
 	.bind          = sock_no_bind,
@@ -1575,7 +1578,7 @@ static struct proto_ops bcm_ops __read_mostly = {
 	.accept        = sock_no_accept,
 	.getname       = sock_no_getname,
 	.poll          = datagram_poll,
-	.ioctl         = NULL,		/* use can_ioctl() from af_can.c */
+	.ioctl         = can_ioctl,	/* use can_ioctl() from af_can.c */
 	.listen        = sock_no_listen,
 	.shutdown      = sock_no_shutdown,
 	.setsockopt    = sock_no_setsockopt,

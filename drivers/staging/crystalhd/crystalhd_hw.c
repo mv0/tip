@@ -1711,7 +1711,7 @@ enum BC_STATUS crystalhd_download_fw(struct crystalhd_adp *adp, void *buffer, ui
 	}
 
 	BCMLOG(BCMLOG_INFO, "Firmware Downloaded Successfully\n");
-	return BC_STS_SUCCESS;;
+	return BC_STS_SUCCESS;
 }
 
 enum BC_STATUS crystalhd_do_fw_cmd(struct crystalhd_hw *hw,
@@ -1965,6 +1965,7 @@ enum BC_STATUS crystalhd_hw_setup_dma_rings(struct crystalhd_hw *hw)
 		} else {
 			BCMLOG_ERR("Insufficient Memory For RX\n");
 			crystalhd_hw_free_dma_rings(hw);
+			kfree(rpkt);
 			return BC_STS_INSUFF_RES;
 		}
 		rpkt->desc_mem.pdma_desc_start = mem;

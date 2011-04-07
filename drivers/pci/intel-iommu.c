@@ -36,7 +36,7 @@
 #include <linux/iova.h>
 #include <linux/iommu.h>
 #include <linux/intel-iommu.h>
-#include <linux/sysdev.h>
+#include <linux/syscore_ops.h>
 #include <linux/tboot.h>
 #include <linux/dmi.h>
 #include <asm/cacheflush.h>
@@ -71,6 +71,49 @@
 #define DMA_32BIT_PFN		IOVA_PFN(DMA_BIT_MASK(32))
 #define DMA_64BIT_PFN		IOVA_PFN(DMA_BIT_MASK(64))
 
+/* page table handling */
+#define LEVEL_STRIDE		(9)
+#define LEVEL_MASK		(((u64)1 << LEVEL_STRIDE) - 1)
+
+static inline int agaw_to_level(int agaw)
+{
+	return agaw + 2;
+}
+
+static inline int agaw_to_width(int agaw)
+{
+	return 30 + agaw * LEVEL_STRIDE;
+}
+
+static inline int width_to_agaw(int width)
+{
+	return (width - 30) / LEVEL_STRIDE;
+}
+
+static inline unsigned int level_to_offset_bits(int level)
+{
+	return (level - 1) * LEVEL_STRIDE;
+}
+
+static inline int pfn_level_offset(unsigned long pfn, int level)
+{
+	return (pfn >> level_to_offset_bits(level)) & LEVEL_MASK;
+}
+
+static inline unsigned long level_mask(int level)
+{
+	return -1UL << level_to_offset_bits(level);
+}
+
+static inline unsigned long level_size(int level)
+{
+	return 1UL << level_to_offset_bits(level);
+}
+
+static inline unsigned long align_to_level(unsigned long pfn, int level)
+{
+	return (pfn + level_size(level) - 1) & level_mask(level);
+}
 
 /* VT-d pages must always be _smaller_ than MM pages. Otherwise things
    are never going to work. */
@@ -434,8 +477,6 @@ void free_iova_mem(struct iova *iova)
 }
 
 
-static inline int width_to_agaw(int width);
-
 static int __iommu_calculate_agaw(struct intel_iommu *iommu, int max_gaw)
 {
 	unsigned long sagaw;
@@ -644,51 +685,6 @@ static void free_context_table(struct intel_iommu *iommu)
 	iommu->root_entry = NULL;
 out:
 	spin_unlock_irqrestore(&iommu->lock, flags);
-}
-
-/* page table handling */
-#define LEVEL_STRIDE		(9)
-#define LEVEL_MASK		(((u64)1 << LEVEL_STRIDE) - 1)
-
-static inline int agaw_to_level(int agaw)
-{
-	return agaw + 2;
-}
-
-static inline int agaw_to_width(int agaw)
-{
-	return 30 + agaw * LEVEL_STRIDE;
-
-}
-
-static inline int width_to_agaw(int width)
-{
-	return (width - 30) / LEVEL_STRIDE;
-}
-
-static inline unsigned int level_to_offset_bits(int level)
-{
-	return (level - 1) * LEVEL_STRIDE;
-}
-
-static inline int pfn_level_offset(unsigned long pfn, int level)
-{
-	return (pfn >> level_to_offset_bits(level)) & LEVEL_MASK;
-}
-
-static inline unsigned long level_mask(int level)
-{
-	return -1UL << level_to_offset_bits(level);
-}
-
-static inline unsigned long level_size(int level)
-{
-	return 1UL << level_to_offset_bits(level);
-}
-
-static inline unsigned long align_to_level(unsigned long pfn, int level)
-{
-	return (pfn + level_size(level) - 1) & level_mask(level);
 }
 
 static struct dma_pte *pfn_to_dma_pte(struct dmar_domain *domain,
@@ -1210,7 +1206,7 @@ void free_dmar_iommu(struct intel_iommu *iommu)
 		iommu_disable_translation(iommu);
 
 	if (iommu->irq) {
-		set_irq_data(iommu->irq, NULL);
+		irq_set_handler_data(iommu->irq, NULL);
 		/* This will mask the irq */
 		free_irq(iommu->irq, iommu);
 		destroy_irq(iommu->irq);
@@ -3139,7 +3135,7 @@ static void iommu_flush_all(void)
 	}
 }
 
-static int iommu_suspend(struct sys_device *dev, pm_message_t state)
+static int iommu_suspend(void)
 {
 	struct dmar_drhd_unit *drhd;
 	struct intel_iommu *iommu = NULL;
@@ -3179,7 +3175,7 @@ nomem:
 	return -ENOMEM;
 }
 
-static int iommu_resume(struct sys_device *dev)
+static void iommu_resume(void)
 {
 	struct dmar_drhd_unit *drhd;
 	struct intel_iommu *iommu = NULL;
@@ -3187,7 +3183,7 @@ static int iommu_resume(struct sys_device *dev)
 
 	if (init_iommu_hw()) {
 		WARN(1, "IOMMU setup failed, DMAR can not resume!\n");
-		return -EIO;
+		return;
 	}
 
 	for_each_active_iommu(iommu, drhd) {
@@ -3208,40 +3204,20 @@ static int iommu_resume(struct sys_device *dev)
 
 	for_each_active_iommu(iommu, drhd)
 		kfree(iommu->iommu_state);
-
-	return 0;
 }
 
-static struct sysdev_class iommu_sysclass = {
-	.name		= "iommu",
+static struct syscore_ops iommu_syscore_ops = {
 	.resume		= iommu_resume,
 	.suspend	= iommu_suspend,
 };
 
-static struct sys_device device_iommu = {
-	.cls	= &iommu_sysclass,
-};
-
-static int __init init_iommu_sysfs(void)
+static void __init init_iommu_pm_ops(void)
 {
-	int error;
-
-	error = sysdev_class_register(&iommu_sysclass);
-	if (error)
-		return error;
-
-	error = sysdev_register(&device_iommu);
-	if (error)
-		sysdev_class_unregister(&iommu_sysclass);
-
-	return error;
+	register_syscore_ops(&iommu_syscore_ops);
 }
 
 #else
-static int __init init_iommu_sysfs(void)
-{
-	return 0;
-}
+static inline int init_iommu_pm_ops(void) { }
 #endif	/* CONFIG_PM */
 
 /*
@@ -3324,7 +3300,7 @@ int __init intel_iommu_init(void)
 #endif
 	dma_ops = &intel_dma_ops;
 
-	init_iommu_sysfs();
+	init_iommu_pm_ops();
 
 	register_iommu(&intel_iommu_ops);
 
@@ -3760,6 +3736,33 @@ static void __devinit quirk_iommu_rwbf(struct pci_dev *dev)
 }
 
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, 0x2a40, quirk_iommu_rwbf);
+
+#define GGC 0x52
+#define GGC_MEMORY_SIZE_MASK	(0xf << 8)
+#define GGC_MEMORY_SIZE_NONE	(0x0 << 8)
+#define GGC_MEMORY_SIZE_1M	(0x1 << 8)
+#define GGC_MEMORY_SIZE_2M	(0x3 << 8)
+#define GGC_MEMORY_VT_ENABLED	(0x8 << 8)
+#define GGC_MEMORY_SIZE_2M_VT	(0x9 << 8)
+#define GGC_MEMORY_SIZE_3M_VT	(0xa << 8)
+#define GGC_MEMORY_SIZE_4M_VT	(0xb << 8)
+
+static void __devinit quirk_calpella_no_shadow_gtt(struct pci_dev *dev)
+{
+	unsigned short ggc;
+
+	if (pci_read_config_word(dev, GGC, &ggc))
+		return;
+
+	if (!(ggc & GGC_MEMORY_VT_ENABLED)) {
+		printk(KERN_INFO "DMAR: BIOS has allocated no shadow GTT; disabling IOMMU for graphics\n");
+		dmar_map_gfx = 0;
+	}
+}
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, 0x0040, quirk_calpella_no_shadow_gtt);
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, 0x0044, quirk_calpella_no_shadow_gtt);
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, 0x0062, quirk_calpella_no_shadow_gtt);
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, 0x006a, quirk_calpella_no_shadow_gtt);
 
 /* On Tylersburg chipsets, some BIOSes have been known to enable the
    ISOCH DMAR unit for the Azalia sound device, but not give it any

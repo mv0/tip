@@ -1430,9 +1430,9 @@ static DEVICE_ATTR(i2c_reg, S_IRUGO | S_IWUSR,
 		   sn9c102_show_i2c_reg, sn9c102_store_i2c_reg);
 static DEVICE_ATTR(i2c_val, S_IRUGO | S_IWUSR,
 		   sn9c102_show_i2c_val, sn9c102_store_i2c_val);
-static DEVICE_ATTR(green, S_IWUGO, NULL, sn9c102_store_green);
-static DEVICE_ATTR(blue, S_IWUGO, NULL, sn9c102_store_blue);
-static DEVICE_ATTR(red, S_IWUGO, NULL, sn9c102_store_red);
+static DEVICE_ATTR(green, S_IWUSR, NULL, sn9c102_store_green);
+static DEVICE_ATTR(blue, S_IWUSR, NULL, sn9c102_store_blue);
+static DEVICE_ATTR(red, S_IWUSR, NULL, sn9c102_store_red);
 static DEVICE_ATTR(frame_header, S_IRUGO, sn9c102_show_frame_header, NULL);
 
 
@@ -2189,6 +2189,7 @@ sn9c102_vidioc_enuminput(struct sn9c102_device* cam, void __user * arg)
 	memset(&i, 0, sizeof(i));
 	strcpy(i.name, "Camera");
 	i.type = V4L2_INPUT_TYPE_CAMERA;
+	i.capabilities = V4L2_IN_CAP_STD;
 
 	if (copy_to_user(arg, &i, sizeof(i)))
 		return -EFAULT;
@@ -3238,7 +3239,7 @@ static const struct v4l2_file_operations sn9c102_fops = {
 	.owner = THIS_MODULE,
 	.open = sn9c102_open,
 	.release = sn9c102_release,
-	.ioctl = sn9c102_ioctl,
+	.unlocked_ioctl = sn9c102_ioctl,
 	.read = sn9c102_read,
 	.poll = sn9c102_poll,
 	.mmap = sn9c102_mmap,

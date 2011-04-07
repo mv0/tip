@@ -13,7 +13,6 @@
 #include <linux/statfs.h>
 #include <linux/magic.h>
 #include <linux/sched.h>
-#include <linux/smp_lock.h>
 #include <linux/bitmap.h>
 #include <linux/slab.h>
 
@@ -103,15 +102,11 @@ static void hpfs_put_super(struct super_block *s)
 {
 	struct hpfs_sb_info *sbi = hpfs_sb(s);
 
-	lock_kernel();
-
 	kfree(sbi->sb_cp_table);
 	kfree(sbi->sb_bmp_dir);
 	unmark_dirty(s);
 	s->s_fs_info = NULL;
 	kfree(sbi);
-
-	unlock_kernel();
 }
 
 unsigned hpfs_count_one_bitmap(struct super_block *s, secno secno)
@@ -143,7 +138,7 @@ static int hpfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	struct super_block *s = dentry->d_sb;
 	struct hpfs_sb_info *sbi = hpfs_sb(s);
 	u64 id = huge_encode_dev(s->s_bdev->bd_dev);
-	lock_kernel();
+	hpfs_lock(s);
 
 	/*if (sbi->sb_n_free == -1) {*/
 		sbi->sb_n_free = count_bitmaps(s);
@@ -160,7 +155,7 @@ static int hpfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	buf->f_fsid.val[1] = (u32)(id >> 32);
 	buf->f_namelen = 254;
 
-	unlock_kernel();
+	hpfs_unlock(s);
 
 	return 0;
 }
@@ -177,9 +172,16 @@ static struct inode *hpfs_alloc_inode(struct super_block *sb)
 	return &ei->vfs_inode;
 }
 
+static void hpfs_i_callback(struct rcu_head *head)
+{
+	struct inode *inode = container_of(head, struct inode, i_rcu);
+	INIT_LIST_HEAD(&inode->i_dentry);
+	kmem_cache_free(hpfs_inode_cachep, hpfs_i(inode));
+}
+
 static void hpfs_destroy_inode(struct inode *inode)
 {
-	kmem_cache_free(hpfs_inode_cachep, hpfs_i(inode));
+	call_rcu(&inode->i_rcu, hpfs_i_callback);
 }
 
 static void init_once(void *foo)
@@ -399,7 +401,7 @@ static int hpfs_remount_fs(struct super_block *s, int *flags, char *data)
 	
 	*flags |= MS_NOATIME;
 	
-	lock_kernel();
+	hpfs_lock(s);
 	lock_super(s);
 	uid = sbi->sb_uid; gid = sbi->sb_gid;
 	umask = 0777 & ~sbi->sb_mode;
@@ -434,12 +436,12 @@ static int hpfs_remount_fs(struct super_block *s, int *flags, char *data)
 	replace_mount_options(s, new_opts);
 
 	unlock_super(s);
-	unlock_kernel();
+	hpfs_unlock(s);
 	return 0;
 
 out_err:
 	unlock_super(s);
-	unlock_kernel();
+	hpfs_unlock(s);
 	kfree(new_opts);
 	return -EINVAL;
 }
@@ -477,17 +479,23 @@ static int hpfs_fill_super(struct super_block *s, void *options, int silent)
 
 	int o;
 
+	if (num_possible_cpus() > 1) {
+		printk(KERN_ERR "HPFS is not SMP safe\n");
+		return -EINVAL;
+	}
+
 	save_mount_options(s, options);
 
 	sbi = kzalloc(sizeof(*sbi), GFP_KERNEL);
-	if (!sbi)
+	if (!sbi) {
 		return -ENOMEM;
+	}
 	s->s_fs_info = sbi;
 
 	sbi->sb_bmp_dir = NULL;
 	sbi->sb_cp_table = NULL;
 
-	init_MUTEX(&sbi->hpfs_creation_de);
+	mutex_init(&sbi->hpfs_creation_de);
 
 	uid = current_uid();
 	gid = current_gid();
@@ -539,6 +547,7 @@ static int hpfs_fill_super(struct super_block *s, void *options, int silent)
 	/* Fill superblock stuff */
 	s->s_magic = HPFS_SUPER_MAGIC;
 	s->s_op = &hpfs_sops;
+	s->s_d_op = &hpfs_dentry_operations;
 
 	sbi->sb_root = superblock->root;
 	sbi->sb_fs_size = superblock->n_sectors;
@@ -640,7 +649,6 @@ static int hpfs_fill_super(struct super_block *s, void *options, int silent)
 		iput(root);
 		goto bail0;
 	}
-	hpfs_set_dentry_operations(s->s_root);
 
 	/*
 	 * find the root directory's . pointer & finish filling in the inode
@@ -680,17 +688,16 @@ bail0:
 	return -EINVAL;
 }
 
-static int hpfs_get_sb(struct file_system_type *fs_type,
-	int flags, const char *dev_name, void *data, struct vfsmount *mnt)
+static struct dentry *hpfs_mount(struct file_system_type *fs_type,
+	int flags, const char *dev_name, void *data)
 {
-	return get_sb_bdev(fs_type, flags, dev_name, data, hpfs_fill_super,
-			   mnt);
+	return mount_bdev(fs_type, flags, dev_name, data, hpfs_fill_super);
 }
 
 static struct file_system_type hpfs_fs_type = {
 	.owner		= THIS_MODULE,
 	.name		= "hpfs",
-	.get_sb		= hpfs_get_sb,
+	.mount		= hpfs_mount,
 	.kill_sb	= kill_block_super,
 	.fs_flags	= FS_REQUIRES_DEV,
 };
