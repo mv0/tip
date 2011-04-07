@@ -18,6 +18,7 @@ import email
 import mailbox
 import string
 import commands
+import urllib
 
 # Print the usage information
 def usage():
@@ -109,7 +110,7 @@ def parse_msg(body, fdp, mailcc, messageid):
 						fdp.write("Cc: " + cc + "\n")
 
 				if lkml_posting == 1:
-					fdp.write("LKML-Reference: " + messageid + "\n")
+					fdp.write("Link: http://lkml.kernel.org/r/" + messageid + "\n")
 				fdp.write("Signed-off-by: " + mailaddr + "\n")
 				sobfound = 3
 
@@ -220,13 +221,34 @@ while 1:
 	mailsubject = msg.get("Subject")
 	mailfrom = msg.get("From")
 	maildate = msg.get("Date")
+
+	#
+	# Get the raw Message-ID header field from the mail:
+	#
 	messageid = msg.get("Message-ID")
+
+	#
+	# First strip the <> from the Message-ID:
+	#
+	messageid = messageid[+1:-1]
+
+	#
+	# Message-ID is used for Link: tag URL generation,
+	# it is untrusted external data, so escape script-unsafe
+	# characters.
+	#
+	# Note, we make a special exception for '@' which is
+	# technically not URL-safe - but it's script-safe and
+	# makes for more human-readable commit logs:
+	#
+	messageid = urllib.quote(messageid, "@")
 
 	mailsubject = mailsubject.replace("\n", "")
 	mailsubject = mailsubject.replace("\t", " ")
 
 
 	subject = str(rmpatch.sub("", mailsubject)).strip().rstrip(".")
+	subject = urllib.quote(subject, " :[](),/")
 	fname = subject_to_fname(subject)
 
 	idx = subject.find(":")
