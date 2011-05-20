@@ -29,7 +29,7 @@ def usage():
 
 def subject_to_fname(mailsubject):
 
-	fn = subject.lower()
+	fn = mailsubject.lower()
 	fname = ""
 	i = 0
 	while i < len(fn):
@@ -195,7 +195,7 @@ exit
 fd = open(arguments[0], "r")
 mbx = mailbox.PortableUnixMailbox(fd, email.message_from_file)
 
-rmpatch = re.compile("\[.*[Pp][Aa][Tt][Cc][Hh].*\]")
+rmpatch = re.compile("\[[^\]]*[Pp][Aa][Tt][Cc][Hh][^\]]*\]")
 
 fds = open(patchdir + "/series", "a")
 
@@ -245,7 +245,6 @@ while 1:
 
 	mailsubject = mailsubject.replace("\n", "")
 	mailsubject = mailsubject.replace("\t", " ")
-
 
 	subject = str(rmpatch.sub("", mailsubject)).strip().rstrip(".")
 	subject = urllib.quote(subject, " :[](),/")
