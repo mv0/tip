@@ -165,3 +165,5 @@ x86/security
 x86/apic-cleanups
 x86/efi
 x86/smep
+
+x86/hyperv
