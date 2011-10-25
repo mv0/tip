@@ -32,6 +32,7 @@ obj-$(CONFIG_SPARC32)   += sun4m_irq.o sun4c_irq.o sun4d_irq.o
 
 obj-y                   += process_$(BITS).o
 obj-y                   += signal_$(BITS).o
+obj-y                   += sigutil_$(BITS).o
 obj-$(CONFIG_SPARC32)   += ioport.o
 obj-y                   += setup_$(BITS).o
 obj-y                   += idprom.o
@@ -73,7 +74,9 @@ obj-$(CONFIG_SPARC64_SMP) += cpumap.o
 
 obj-y                     += dma.o
 
-obj-$(CONFIG_SPARC32_PCI) += pcic.o
+obj-$(CONFIG_PCIC_PCI)    += pcic.o
+obj-$(CONFIG_LEON_PCI)    += leon_pci.o
+obj-$(CONFIG_GRPCI2)      += leon_pci_grpci2.o
 
 obj-$(CONFIG_SMP)         += trampoline_$(BITS).o smp_$(BITS).o
 obj-$(CONFIG_SPARC32_SMP) += sun4m_smp.o sun4d_smp.o leon_smp.o

@@ -82,8 +82,6 @@ struct perf_sample {
 	struct ip_callchain *callchain;
 };
 
-int perf_sample_size(u64 sample_type);
-
 #define BUILD_ID_SIZE 20
 
 struct build_id_event {
@@ -188,6 +186,6 @@ const char *perf_event__name(unsigned int id);
 
 int perf_event__parse_sample(const union perf_event *event, u64 type,
 			     int sample_size, bool sample_id_all,
-			     struct perf_sample *sample);
+			     struct perf_sample *sample, bool swapped);
 
 #endif /* __PERF_RECORD_H */

@@ -341,6 +341,7 @@ static struct platform_device mipidsi0_device = {
 static struct sh_mobile_sdhi_info sdhi0_info = {
 	.dma_slave_tx	= SHDMA_SLAVE_SDHI0_TX,
 	.dma_slave_rx	= SHDMA_SLAVE_SDHI0_RX,
+	.tmio_flags	= TMIO_MMC_HAS_IDLE_WAIT,
 	.tmio_caps	= MMC_CAP_SD_HIGHSPEED,
 	.tmio_ocr_mask	= MMC_VDD_27_28 | MMC_VDD_28_29,
 };
@@ -381,11 +382,9 @@ void ag5evm_sdhi1_set_pwr(struct platform_device *pdev, int state)
 	gpio_set_value(GPIO_PORT114, state);
 }
 
-static struct sh_mobile_sdhi_info sh_sdhi1_platdata = {
-	.dma_slave_tx	= SHDMA_SLAVE_SDHI1_TX,
-	.dma_slave_rx	= SHDMA_SLAVE_SDHI1_RX,
-	.tmio_flags	= TMIO_MMC_WRPROTECT_DISABLE,
-	.tmio_caps	= MMC_CAP_NONREMOVABLE,
+static struct sh_mobile_sdhi_info sh_sdhi1_info = {
+	.tmio_flags	= TMIO_MMC_WRPROTECT_DISABLE | TMIO_MMC_HAS_IDLE_WAIT,
+	.tmio_caps	= MMC_CAP_NONREMOVABLE | MMC_CAP_SDIO_IRQ,
 	.tmio_ocr_mask	= MMC_VDD_32_33 | MMC_VDD_33_34,
 	.set_pwr	= ag5evm_sdhi1_set_pwr,
 };
@@ -415,7 +414,7 @@ static struct platform_device sdhi1_device = {
 	.name		= "sh_mobile_sdhi",
 	.id		= 1,
 	.dev		= {
-		.platform_data	= &sh_sdhi1_platdata,
+		.platform_data	= &sh_sdhi1_info,
 	},
 	.num_resources	= ARRAY_SIZE(sdhi1_resources),
 	.resource	= sdhi1_resources,

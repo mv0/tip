@@ -35,22 +35,6 @@ const char *perf_event__name(unsigned int id)
 	return perf_event__names[id];
 }
 
-int perf_sample_size(u64 sample_type)
-{
-	u64 mask = sample_type & PERF_SAMPLE_MASK;
-	int size = 0;
-	int i;
-
-	for (i = 0; i < 64; i++) {
-		if (mask & (1ULL << i))
-			size++;
-	}
-
-	size *= sizeof(u64);
-
-	return size;
-}
-
 static struct perf_sample synth_sample = {
 	.pid	   = -1,
 	.tid	   = -1,
@@ -185,11 +169,16 @@ static int perf_event__synthesize_mmap_events(union perf_event *event,
 			continue;
 		pbf += n + 3;
 		if (*pbf == 'x') { /* vm_exec */
+			char anonstr[] = "//anon\n";
 			char *execname = strchr(bf, '/');
 
 			/* Catch VDSO */
 			if (execname == NULL)
 				execname = strstr(bf, "[vdso]");
+
+			/* Catch anonymous mmaps */
+			if ((execname == NULL) && !strstr(bf, "["))
+				execname = anonstr;
 
 			if (execname == NULL)
 				continue;

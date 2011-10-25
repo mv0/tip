@@ -46,12 +46,6 @@ static struct map_desc v2m_io_desc[] __initdata = {
 	},
 };
 
-static void __init v2m_init_early(void)
-{
-	ct_desc->init_early();
-	versatile_sched_clock_init(MMIO_P2V(V2M_SYS_24MHZ), 24000000);
-}
-
 static void __init v2m_timer_init(void)
 {
 	u32 scctrl;
@@ -324,6 +318,10 @@ static struct clk v2m_sp804_clk = {
 	.rate	= 1000000,
 };
 
+static struct clk v2m_ref_clk = {
+	.rate   = 32768,
+};
+
 static struct clk dummy_apb_pclk;
 
 static struct clk_lookup v2m_lookups[] = {
@@ -354,6 +352,9 @@ static struct clk_lookup v2m_lookups[] = {
 	}, {	/* CLCD */
 		.dev_id		= "mb:clcd",
 		.clk		= &osc1_clk,
+	}, {	/* SP805 WDT */
+		.dev_id		= "mb:wdt",
+		.clk		= &v2m_ref_clk,
 	}, {	/* SP804 timers */
 		.dev_id		= "sp804",
 		.con_id		= "v2m-timer0",
@@ -364,6 +365,13 @@ static struct clk_lookup v2m_lookups[] = {
 		.clk		= &v2m_sp804_clk,
 	},
 };
+
+static void __init v2m_init_early(void)
+{
+	ct_desc->init_early();
+	clkdev_add_table(v2m_lookups, ARRAY_SIZE(v2m_lookups));
+	versatile_sched_clock_init(MMIO_P2V(V2M_SYS_24MHZ), 24000000);
+}
 
 static void v2m_power_off(void)
 {
@@ -417,8 +425,6 @@ static void __init v2m_init_irq(void)
 static void __init v2m_init(void)
 {
 	int i;
-
-	clkdev_add_table(v2m_lookups, ARRAY_SIZE(v2m_lookups));
 
 	platform_device_register(&v2m_pcie_i2c_device);
 	platform_device_register(&v2m_ddc_i2c_device);

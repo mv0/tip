@@ -137,7 +137,7 @@ static void __init process_switch(char c)
 		prom_halt();
 		break;
 	case 'p':
-		/* Just ignore, this behavior is now the default.  */
+		prom_early_console.flags &= ~CON_BOOT;
 		break;
 	default:
 		printk("Unknown boot switch (-%c)\n", c);
@@ -267,7 +267,7 @@ void __init setup_arch(char **cmdline_p)
 	default:
 		printk("UNKNOWN!\n");
 		break;
-	};
+	}
 
 #ifdef CONFIG_DUMMY_CONSOLE
 	conswitchp = &dummy_con;
