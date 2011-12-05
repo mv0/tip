@@ -169,3 +169,4 @@ x86/smep
 x86/hyperv
 x86/urgent
 x86/syscall
+x86/debug
