@@ -1,0 +1,24 @@
+bug(1)
+=======
+
+NAME
+----
+bug - Performance analysis tools for Linux
+
+SYNOPSIS
+--------
+[verse]
+'bug' [--version] [--help] COMMAND [ARGS]
+
+DESCRIPTION
+-----------
+Performance counters for Linux are a new kernel-based subsystem
+that provide a framework for all things bugormance analysis. It
+covers hardware level (CPU/PMU, Performance Monitoring Unit) features
+and software features (software counters, tracepoints) as well.
+
+SEE ALSO
+--------
+linkbug:bug-stat[1], linkbug:bug-top[1],
+linkbug:bug-record[1], linkbug:bug-report[1],
+linkbug:bug-list[1]

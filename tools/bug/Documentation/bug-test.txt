@@ -1,0 +1,28 @@
+bug-test(1)
+============
+
+NAME
+----
+bug-test - Runs sanity tests.
+
+SYNOPSIS
+--------
+[verse]
+'bug test [<options>] [{list <test-name-fragment>|[<test-name-fragments>|<test-numbers>]}]'
+
+DESCRIPTION
+-----------
+This command does assorted sanity tests, initially through linked routines but
+also will look for a directory with more tests in the form of scripts.
+
+To get a list of available tests use 'bug test list', specifying a test name
+fragment will show all tests that have it.
+
+To run just specific tests, inform test name fragments or the numbers obtained
+from 'bug test list'.
+
+OPTIONS
+-------
+-v::
+--verbose::
+	Be more verbose.

@@ -1,0 +1,5 @@
+#
+# List of known bug commands.
+# command name			category [deprecated] [common]
+#
+bug-test			mainporcelain common
