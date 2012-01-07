@@ -1,4 +1,4 @@
-#! /bin/sh
+
 
 if [ $# != "2" ]; then
         echo 'usage: __tip-pull-request <head-branch> <base-branch>'
@@ -17,9 +17,13 @@ echo $HEAD $BRANCH $BASE
 
 cd ~/tip/
 
+#KORG=git.kernel.org/pub/scm/linux/kernel/git/tip
+#KORG=tesla.tglx.de/git
+KORG=git.kernel.org/pub/scm/linux/kernel/git/tip/tip.git
+
 (
  printf "Linus,\n\nPlease pull the latest $BRANCH git tree from:\n\n"
- printf "   git://git.kernel.org/pub/scm/linux/kernel/git/tip/linux-2.6-tip.git $BRANCH\n\n"
+ printf "   git://$KORG $BRANCH\n\n"
 
  tip-check-topic $BRANCH $BASE
 
@@ -36,6 +40,8 @@ cd ~/tip/
 ) > ~/s/1
 
 ls -l ~/s/1
+
+tpc -f
 
 echo "done!"
 
