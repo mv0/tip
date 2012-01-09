@@ -21,9 +21,19 @@ cd ~/tip/
 #KORG=tesla.tglx.de/git
 KORG=git.kernel.org/pub/scm/linux/kernel/git/tip/tip.git
 
+git fetch
+git push origin HEAD || { echo 'PUSH FAILED!'; exit -1; }
+
+HEAD_LOC=$(git log -1 --format=oneline $BRANCH | cut -d' ' -f1)
+HEAD_REM=$(git log -1 --format=oneline origin/$BRANCH | cut -d' ' -f1)
+
+[ "$HEAD_LOC" != "$HEAD_REM" ] && { echo 'heads out of sync!'; exit -1; }
+
 (
  printf "Linus,\n\nPlease pull the latest $BRANCH git tree from:\n\n"
  printf "   git://$KORG $BRANCH\n\n"
+ echo -n "   HEAD: "; git log -1 --format=oneline origin/$BRANCH
+ echo
 
  tip-check-topic $BRANCH $BASE
 
@@ -40,8 +50,6 @@ KORG=git.kernel.org/pub/scm/linux/kernel/git/tip/tip.git
 ) > ~/s/1
 
 ls -l ~/s/1
-
-tpc -f || { echo 'PUSH FAILED!'; exit -1'; }
 
 echo "done!"
 
