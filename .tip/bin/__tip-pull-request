@@ -41,7 +41,7 @@ KORG=git.kernel.org/pub/scm/linux/kernel/git/tip/tip.git
 
 ls -l ~/s/1
 
-tpc -f
+tpc -f || { echo 'PUSH FAILED!'; exit -1'; }
 
 echo "done!"
 
