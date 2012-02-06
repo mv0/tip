@@ -4,10 +4,10 @@
 #
 
 . $(dirname "$0")/tip-lib
+
 B=`get_current_branch`
+echo "$B"
 
-echo $B
+R=`git config --get "branch.$B.remote"`
 
-git push $@ origin $B
-
-exit $?
+exec git push "$@" "$R" "$B"
