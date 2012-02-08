@@ -171,3 +171,4 @@ x86/urgent
 x86/syscall
 x86/debug
 x86/autoprobe
+x86/reboot
