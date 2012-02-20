@@ -26,3 +26,4 @@ core/locking-v2
 core/printk
 core/urgent
 core/memblock
+core/types
