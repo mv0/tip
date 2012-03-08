@@ -16,3 +16,4 @@ perf/jump-label
 perf/stat
 perf/fast
 perf/uprobes
+perf/x86-ibs
