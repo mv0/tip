@@ -175,3 +175,4 @@ x86/autoprobe
 x86/reboot
 x86/x32
 x86/extable
+x86/ftrace
