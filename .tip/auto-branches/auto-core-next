@@ -27,3 +27,4 @@ core/printk
 core/urgent
 core/memblock
 core/types
+core/debug
