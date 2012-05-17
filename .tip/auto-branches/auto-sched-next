@@ -17,3 +17,4 @@ sched/domains
 sched/locking
 sched/urgent
 sched/arch
+sched/numa
