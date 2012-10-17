@@ -7,3 +7,4 @@ core/printk
 core/rcu
 core/types
 core/urgent
+numa/core
