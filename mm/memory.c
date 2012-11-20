@@ -3457,64 +3457,105 @@ static int do_nonlinear_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	return __do_fault(mm, vma, address, pmd, pgoff, flags, orig_pte);
 }
 
-static int do_numa_page(struct mm_struct *mm, struct vm_area_struct *vma,
+static int __do_numa_page(struct mm_struct *mm, struct vm_area_struct *vma,
 			unsigned long address, pte_t *ptep, pmd_t *pmd,
-			unsigned int flags, pte_t entry)
+			unsigned int flags, pte_t entry, spinlock_t *ptl)
 {
-	struct page *page = NULL;
-	int node, page_nid = -1;
-	int last_cpu = -1;
-	spinlock_t *ptl;
+	struct page *page;
+	int best_node;
+	int last_cpu;
+	int page_nid;
 
-	ptl = pte_lockptr(mm, pmd);
-	spin_lock(ptl);
-	if (unlikely(!pte_same(*ptep, entry)))
-		goto out_unlock;
+	WARN_ON_ONCE(pmd_trans_splitting(*pmd));
 
 	page = vm_normal_page(vma, address, entry);
-	if (page) {
-		get_page(page);
-		page_nid = page_to_nid(page);
-		last_cpu = page_last_cpu(page);
-		node = mpol_misplaced(page, vma, address);
-		if (node != -1 && node != page_nid)
-			goto migrate;
-	}
 
-out_pte_upgrade_unlock:
 	flush_cache_page(vma, address, pte_pfn(entry));
-
 	ptep_modify_prot_start(mm, address, ptep);
 	entry = pte_modify(entry, vma->vm_page_prot);
+
+	/* Be careful: */
+	if (pte_dirty(entry) && page && PageAnon(page) && (page_mapcount(page) == 1))
+		entry = pte_mkwrite(entry);
+
 	ptep_modify_prot_commit(mm, address, ptep, entry);
-
 	/* No TLB flush needed because we upgraded the PTE */
-
 	update_mmu_cache(vma, address, ptep);
 
-out_unlock:
-	pte_unmap_unlock(ptep, ptl);
+	if (!page)
+		return 0;
 
-	if (page) {
+	page_nid = page_to_nid(page);
+	last_cpu = page_last_cpu(page);
+	best_node = mpol_misplaced(page, vma, address);
+
+	if (best_node == -1 || best_node == page_nid || page_mapcount(page) != 1) {
 		task_numa_fault(page_nid, last_cpu, 1);
-		put_page(page);
+		return 0;
 	}
-out:
-	return 0;
 
-migrate:
+	/* Start the migration: */
+
+	get_page(page);
 	pte_unmap_unlock(ptep, ptl);
 
-	if (migrate_misplaced_page(page, node)) {
-		goto out;
+	/* Drops the page reference */
+	if (migrate_misplaced_page(page, best_node))
+		task_numa_fault(best_node, last_cpu, 1);
+
+	spin_lock(ptl);
+	return 0;
+}
+
+/*
+ * Also fault over nearby ptes from within the same pmd and vma,
+ * in order to minimize the overhead from page fault exceptions:
+ */
+static int do_numa_page(struct mm_struct *mm, struct vm_area_struct *vma,
+			unsigned long addr0, pte_t *ptep0, pmd_t *pmd,
+			unsigned int flags, pte_t entry0)
+{
+	unsigned long addr0_pmd;
+	unsigned long addr_start;
+	unsigned long addr;
+	spinlock_t *ptl;
+	pte_t *ptep_start;
+	pte_t *ptep;
+	pte_t entry;
+
+	WARN_ON_ONCE(addr0 < vma->vm_start || addr0 >= vma->vm_end);
+
+	addr0_pmd = addr0 & PMD_MASK;
+	addr_start = max(addr0_pmd, vma->vm_start);
+
+	ptep_start = pte_offset_map(pmd, addr_start);
+	ptl = pte_lockptr(mm, pmd);
+	spin_lock(ptl);
+
+	ptep = ptep_start+1;
+
+	for (addr = addr_start+PAGE_SIZE; addr < vma->vm_end; addr += PAGE_SIZE, ptep++) {
+
+		if ((addr & PMD_MASK) != addr0_pmd)
+			break;
+
+		entry = ACCESS_ONCE(*ptep);
+
+		if (!pte_present(entry))
+			continue;
+		if (!pte_numa(vma, entry))
+			continue;
+
+		__do_numa_page(mm, vma, addr, ptep, pmd, flags, entry, ptl);
 	}
-	page = NULL;
 
-	ptep = pte_offset_map_lock(mm, pmd, address, &ptl);
-	if (!pte_same(*ptep, entry))
-		goto out_unlock;
+	entry = ACCESS_ONCE(*ptep_start);
+	if (pte_present(entry) && pte_numa(vma, entry))
+		__do_numa_page(mm, vma, addr_start, ptep_start, pmd, flags, entry, ptl);
 
-	goto out_pte_upgrade_unlock;
+	pte_unmap_unlock(ptep_start, ptl);
+
+	return 0;
 }
 
 /*

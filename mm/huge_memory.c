@@ -739,6 +739,7 @@ void do_huge_pmd_numa_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	struct mem_cgroup *memcg = NULL;
 	struct page *new_page;
 	struct page *page = NULL;
+	int page_nid = -1;
 	int last_cpu;
 	int node = -1;
 
@@ -754,12 +755,11 @@ void do_huge_pmd_numa_page(struct mm_struct *mm, struct vm_area_struct *vma,
 
 	page = pmd_page(entry);
 	if (page) {
-		int page_nid = page_to_nid(page);
+		page_nid = page_to_nid(page);
 
 		VM_BUG_ON(!PageCompound(page) || !PageHead(page));
 		last_cpu = page_last_cpu(page);
 
-		get_page(page);
 		/*
 		 * Note that migrating pages shared by others is safe, since
 		 * get_user_pages() or GUP fast would have to fault this page
@@ -769,6 +769,8 @@ void do_huge_pmd_numa_page(struct mm_struct *mm, struct vm_area_struct *vma,
 		node = mpol_misplaced(page, vma, haddr);
 		if (node != -1 && node != page_nid)
 			goto migrate;
+
+		task_numa_fault(page_nid, last_cpu, HPAGE_PMD_NR);
 	}
 
 fixup:
@@ -779,32 +781,33 @@ fixup:
 
 unlock:
 	spin_unlock(&mm->page_table_lock);
-	if (page) {
-		task_numa_fault(page_to_nid(page), last_cpu, HPAGE_PMD_NR);
-		put_page(page);
-	}
 	return;
 
 migrate:
-	spin_unlock(&mm->page_table_lock);
-
 	/*
 	 * If this node is getting full then don't migrate even
  	 * more pages here:
  	 */
-	if (!migrate_balanced_pgdat(NODE_DATA(node), HPAGE_PMD_NR)) {
+	if (!migrate_balanced_pgdat(NODE_DATA(node), HPAGE_PMD_NR))
+		goto fixup;
+
+	get_page(page);
+
+	/*
+	 * If we cannot lock the page immediately then wait for it
+	 * to migrate and re-take the fault (which might not be
+	 * necessary if the migrating task fixed up the pmd):
+	 */
+	if (!trylock_page(page)) {
+		spin_unlock(&mm->page_table_lock);
+
+		lock_page(page);
+		unlock_page(page);
 		put_page(page);
+
 		return;
 	}
 
-	lock_page(page);
-	spin_lock(&mm->page_table_lock);
-	if (unlikely(!pmd_same(*pmd, entry))) {
-		spin_unlock(&mm->page_table_lock);
-		unlock_page(page);
-		put_page(page);
-		return;
-	}
 	spin_unlock(&mm->page_table_lock);
 
 	new_page = alloc_pages_node(node,
@@ -884,12 +887,13 @@ migrate:
 
 alloc_fail:
 	unlock_page(page);
+
 	spin_lock(&mm->page_table_lock);
-	if (unlikely(!pmd_same(*pmd, entry))) {
-		put_page(page);
-		page = NULL;
+	put_page(page);
+
+	if (unlikely(!pmd_same(*pmd, entry)))
 		goto unlock;
-	}
+
 	goto fixup;
 }
 #endif
@@ -1275,9 +1279,18 @@ int change_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,
 
 	if (__pmd_trans_huge_lock(pmd, vma) == 1) {
 		pmd_t entry;
+
 		entry = pmdp_get_and_clear(mm, addr, pmd);
 		entry = pmd_modify(entry, newprot);
+
+		if (pmd_numa(vma, entry)) {
+			struct page *page = pmd_page(*pmd);
+
+ 			if (page_mapcount(page) != 1)
+				goto skip;
+		}
 		set_pmd_at(mm, addr, pmd, entry);
+skip:
 		spin_unlock(&vma->vm_mm->page_table_lock);
 		ret = 1;
 	}
