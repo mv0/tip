@@ -178,3 +178,4 @@ x86/extable
 x86/ftrace
 x86/bsp-hotplug
 x86/smap
+x86/mm2
