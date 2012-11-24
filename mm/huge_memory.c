@@ -788,6 +788,15 @@ unlock:
 migrate:
 	spin_unlock(&mm->page_table_lock);
 
+	/*
+	 * If this node is getting full then don't migrate even
+ 	 * more pages here:
+ 	 */
+	if (!migrate_balanced_pgdat(NODE_DATA(node), HPAGE_PMD_NR)) {
+		put_page(page);
+		return;
+	}
+
 	lock_page(page);
 	spin_lock(&mm->page_table_lock);
 	if (unlikely(!pmd_same(*pmd, entry))) {

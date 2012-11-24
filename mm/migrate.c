@@ -1408,8 +1408,7 @@ int migrate_vmas(struct mm_struct *mm, const nodemask_t *to,
  * Returns true if this is a safe migration target node for misplaced NUMA
  * pages. Currently it only checks the watermarks which is a bit crude.
  */
-static bool migrate_balanced_pgdat(struct pglist_data *pgdat,
-				   int nr_migrate_pages)
+bool migrate_balanced_pgdat(struct pglist_data *pgdat, int nr_migrate_pages)
 {
 	int z;
 
