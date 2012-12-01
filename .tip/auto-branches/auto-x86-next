@@ -179,3 +179,4 @@ x86/ftrace
 x86/bsp-hotplug
 x86/smap
 x86/mm2
+x86/nuke386
