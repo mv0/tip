@@ -28,16 +28,19 @@
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
 
-static unsigned long change_pte_range(struct mm_struct *mm, pmd_t *pmd,
+static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 		unsigned long addr, unsigned long end, pgprot_t newprot,
 		int dirty_accountable)
 {
+	struct mm_struct *mm = vma->vm_mm;
 	pte_t *pte, oldpte;
+	struct page *page;
 	spinlock_t *ptl;
 	unsigned long pages = 0;
 
 	pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
 	arch_enter_lazy_mmu_mode();
+
 	do {
 		oldpte = *pte;
 		if (pte_present(oldpte)) {
@@ -46,6 +49,18 @@ static unsigned long change_pte_range(struct mm_struct *mm, pmd_t *pmd,
 			ptent = ptep_modify_prot_start(mm, addr, pte);
 			ptent = pte_modify(ptent, newprot);
 
+			/* Are we turning it into a NUMA entry? */
+			if (pte_numa(vma, ptent)) {
+				page = vm_normal_page(vma, addr, oldpte);
+
+				/* Skip all but private pages: */
+				if (!page || !PageAnon(page) || page_mapcount(page) != 1)
+					ptent = oldpte;
+				else
+					pages++;
+			} else {
+				pages++;
+			}
 			/*
 			 * Avoid taking write faults for pages we know to be
 			 * dirty.
@@ -54,7 +69,6 @@ static unsigned long change_pte_range(struct mm_struct *mm, pmd_t *pmd,
 				ptent = pte_mkwrite(ptent);
 
 			ptep_modify_prot_commit(mm, addr, pte, ptent);
-			pages++;
 		} else if (IS_ENABLED(CONFIG_MIGRATION) && !pte_file(oldpte)) {
 			swp_entry_t entry = pte_to_swp_entry(oldpte);
 
@@ -98,7 +112,7 @@ static inline unsigned long change_pmd_range(struct vm_area_struct *vma, pud_t *
 		}
 		if (pmd_none_or_clear_bad(pmd))
 			continue;
-		pages += change_pte_range(vma->vm_mm, pmd, addr, next, newprot,
+		pages += change_pte_range(vma, pmd, addr, next, newprot,
 				 dirty_accountable);
 	} while (pmd++, addr = next, addr != end);
 
@@ -135,7 +149,9 @@ static unsigned long change_protection_range(struct vm_area_struct *vma,
 	unsigned long start = addr;
 	unsigned long pages = 0;
 
-	BUG_ON(addr >= end);
+	if (WARN_ON_ONCE(addr >= end))
+		return 0;
+
 	pgd = pgd_offset(mm, addr);
 	flush_cache_range(vma, addr, end);
 	do {

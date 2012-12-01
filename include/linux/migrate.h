@@ -31,6 +31,7 @@ extern void migrate_page_copy(struct page *newpage, struct page *page);
 extern int migrate_huge_page_move_mapping(struct address_space *mapping,
 				  struct page *newpage, struct page *page);
 extern int migrate_misplaced_page(struct page *page, int node);
+extern bool migrate_balanced_pgdat(struct pglist_data *pgdat, int nr_migrate_pages);
 #else
 
 static inline void putback_lru_pages(struct list_head *l) {}
@@ -58,6 +59,11 @@ static inline int migrate_huge_page_move_mapping(struct address_space *mapping,
 				  struct page *newpage, struct page *page)
 {
 	return -ENOSYS;
+}
+
+static inline bool migrate_balanced_pgdat(struct pglist_data *pgdat, int nr_migrate_pages)
+{
+	return true;
 }
 
 /* Possible settings for the migrate_page() method in address_operations */

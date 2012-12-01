@@ -39,6 +39,7 @@
 #include <linux/kernel_stat.h>
 #include <linux/debug_locks.h>
 #include <linux/perf_event.h>
+#include <linux/task_work.h>
 #include <linux/security.h>
 #include <linux/notifier.h>
 #include <linux/profile.h>
@@ -131,9 +132,9 @@ void update_rq_clock(struct rq *rq)
  */
 
 #define SCHED_FEAT(name, enabled)	\
-	(1UL << __SCHED_FEAT_##name) * enabled |
+	(1ULL << __SCHED_FEAT_##name) * enabled |
 
-const_debug unsigned int sysctl_sched_features =
+const_debug u64 sysctl_sched_features =
 #include "features.h"
 	0;
 
@@ -963,8 +964,8 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 }
 
 struct migration_arg {
-	struct task_struct *task;
-	int dest_cpu;
+	struct task_struct	*task;
+	int			dest_cpu;
 };
 
 static int migration_cpu_stop(void *data);
@@ -1554,11 +1555,11 @@ static void __sched_fork(struct task_struct *p)
 
 	p->numa_shared = -1;
 	p->node_stamp = 0ULL;
+	p->convergence_strength		= 0;
+	p->convergence_node		= -1;
 	p->numa_scan_seq = p->mm ? p->mm->numa_scan_seq : 0;
-	p->numa_migrate_seq = 2;
 	p->numa_faults = NULL;
 	p->numa_scan_period = sysctl_sched_numa_scan_delay;
-	p->numa_work.next = &p->numa_work;
 
 	p->shared_buddy = NULL;
 	p->shared_buddy_faults = 0;
@@ -1566,10 +1567,29 @@ static void __sched_fork(struct task_struct *p)
 	p->ideal_cpu_curr = -1;
 	atomic_set(&p->numa_policy.refcnt, 1);
 	p->numa_policy.mode = MPOL_INTERLEAVE;
-	p->numa_policy.flags = 0;
+	p->numa_policy.flags = MPOL_F_MOF;
 	p->numa_policy.v.preferred_node = 0;
 	p->numa_policy.v.nodes = node_online_map;
 
+	init_task_work(&p->numa_scan_work, task_numa_scan_work);
+	p->numa_scan_work.next = &p->numa_scan_work;
+
+	init_task_work(&p->numa_placement_work, task_numa_placement_work);
+	p->numa_placement_work.next = &p->numa_placement_work;
+
+	if (p->mm) {
+		int entries = 2*nr_node_ids;
+		int size = sizeof(*p->numa_faults) * entries;
+
+		/*
+		 * For efficiency reasons we allocate ->numa_faults[]
+		 * and ->numa_faults_curr[] at once and split the
+		 * buffer we get. They are separate otherwise.
+		 */
+		p->numa_faults = kzalloc(2*size, GFP_KERNEL);
+		if (p->numa_faults)
+			p->numa_faults_curr = p->numa_faults + entries;
+	}
 #endif /* CONFIG_NUMA_BALANCING */
 }
 
@@ -1579,9 +1599,11 @@ static void __sched_fork(struct task_struct *p)
 void sched_fork(struct task_struct *p)
 {
 	unsigned long flags;
-	int cpu = get_cpu();
+	int cpu;
 
 	__sched_fork(p);
+
+	cpu = get_cpu();
 	/*
 	 * We mark the process as running here. This guarantees that
 	 * nobody will actually run it, and a signal or other external
@@ -2596,22 +2618,6 @@ unlock:
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
 }
 
-/*
- * sched_rebalance_to()
- *
- * Active load-balance to a target CPU.
- */
-void sched_rebalance_to(int dest_cpu)
-{
-	struct task_struct *p = current;
-	struct migration_arg arg = { p, dest_cpu };
-
-	if (!cpumask_test_cpu(dest_cpu, tsk_cpus_allowed(p)))
-		return;
-
-	stop_one_cpu(raw_smp_processor_id(), migration_cpu_stop, &arg);
-}
-
 #endif
 
 DEFINE_PER_CPU(struct kernel_stat, kstat);
@@ -2827,6 +2833,8 @@ pick_next_task(struct rq *rq)
 	}
 
 	BUG(); /* the idle class will always have a runnable task */
+
+	return NULL; /* if BUG() is a NOP then return NULL to crash the scheduler */
 }
 
 /*
@@ -4769,12 +4777,57 @@ static int __migrate_task(struct task_struct *p, int src_cpu, int dest_cpu)
 done:
 	ret = 1;
 fail:
-#ifdef CONFIG_NUMA_BALANCING
-	rq_dest->curr_buddy = NULL;
-#endif
 	double_rq_unlock(rq_src, rq_dest);
 	raw_spin_unlock(&p->pi_lock);
 	return ret;
+}
+
+/*
+ * sched_rebalance_to()
+ *
+ * Active load-balance to a target CPU.
+ */
+void sched_rebalance_to(int dst_cpu, int flip_tasks)
+{
+	struct task_struct *p_src = current;
+	struct task_struct *p_dst;
+	int src_cpu = raw_smp_processor_id();
+	struct migration_arg arg = { p_src, dst_cpu };
+	struct rq *dst_rq;
+
+	if (!cpumask_test_cpu(dst_cpu, tsk_cpus_allowed(p_src)))
+		return;
+
+	if (flip_tasks) {
+		dst_rq = cpu_rq(dst_cpu);
+
+		local_irq_disable();
+		raw_spin_lock(&dst_rq->lock);
+
+		p_dst = dst_rq->curr;
+		get_task_struct(p_dst);
+
+		raw_spin_unlock(&dst_rq->lock);
+		local_irq_enable();
+	}
+
+	stop_one_cpu(src_cpu, migration_cpu_stop, &arg);
+	/*
+	 * Task-flipping.
+	 *
+	 * We are now on the new CPU - check whether we can migrate
+	 * the task we just preempted, to where we came from:
+	 */
+	if (flip_tasks) {
+		local_irq_disable();
+		if (raw_smp_processor_id() == dst_cpu) {
+ 			/* Note that the arguments flip: */
+			__migrate_task(p_dst, dst_cpu, src_cpu);
+		}
+		local_irq_enable();
+
+		put_task_struct(p_dst);
+	}
 }
 
 /*

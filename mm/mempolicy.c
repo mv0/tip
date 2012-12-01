@@ -115,7 +115,7 @@ enum zone_type policy_zone = 0;
 static struct mempolicy default_policy_local = {
 	.refcnt		= ATOMIC_INIT(1), /* never free it */
 	.mode		= MPOL_PREFERRED,
-	.flags		= MPOL_F_LOCAL,
+	.flags		= MPOL_F_LOCAL | MPOL_F_MOF,
 };
 
 static struct mempolicy *default_policy(void)
@@ -1675,11 +1675,14 @@ unsigned slab_node(void)
 		struct zonelist *zonelist;
 		struct zone *zone;
 		enum zone_type highest_zoneidx = gfp_zone(GFP_KERNEL);
+		int node;
+
 		zonelist = &NODE_DATA(numa_node_id())->node_zonelists[0];
 		(void)first_zones_zonelist(zonelist, highest_zoneidx,
 							&policy->v.nodes,
 							&zone);
-		return zone ? zone->node : numa_node_id();
+		node = zone ? zone->node : numa_node_id();
+		return node;
 	}
 
 	default:
@@ -1889,6 +1892,62 @@ static struct page *alloc_page_interleave(gfp_t gfp, unsigned order,
 	return page;
 }
 
+static struct page *
+alloc_pages_nice(gfp_t gfp, int order, struct mempolicy *pol, int best_nid)
+{
+	struct zonelist *zl = policy_zonelist(gfp, pol, best_nid);
+#ifdef CONFIG_NUMA_BALANCING
+	unsigned int pages = 1 << order;
+	gfp_t gfp_nice = gfp | GFP_THISNODE;
+#endif
+	struct page *page = NULL;
+	nodemask_t *nodemask;
+
+	nodemask = policy_nodemask(gfp, pol);
+
+#ifdef CONFIG_NUMA_BALANCING
+	if (migrate_balanced_pgdat(NODE_DATA(best_nid), pages)) {
+		page = alloc_pages_node(best_nid, gfp_nice, order);
+		if (page)
+			return page;
+	}
+
+	/*
+	 * For non-hard-bound tasks, see whether there's another node
+	 * before trying harder:
+	 */
+	if (current->nr_cpus_allowed > 1) {
+		int nid;
+
+		if (nodemask) {
+			int first_nid = find_first_bit(nodemask->bits, MAX_NUMNODES);
+
+			page = alloc_pages_node(first_nid, gfp_nice, order);
+			if (page)
+				return page;
+		}
+
+		/*
+		 * Pick a less loaded node, if possible:
+		 */
+		for_each_node(nid) {
+			if (!migrate_balanced_pgdat(NODE_DATA(nid), pages))
+				continue;
+
+			page = alloc_pages_node(nid, gfp_nice, order);
+			if (page)
+				return page;
+		}
+	}
+#endif
+
+	/* If all failed then try the original plan: */
+	if (!page)
+		page = __alloc_pages_nodemask(gfp, order, zl, nodemask);
+
+	return page;
+}
+
 /**
  * 	alloc_pages_vma	- Allocate a page for a VMA.
  *
@@ -1917,8 +1976,7 @@ alloc_pages_vma(gfp_t gfp, int order, struct vm_area_struct *vma,
 		unsigned long addr, int node)
 {
 	struct mempolicy *pol;
-	struct zonelist *zl;
-	struct page *page;
+	struct page *page = NULL;
 	unsigned int cpuset_mems_cookie;
 
 retry_cpuset:
@@ -1936,13 +1994,12 @@ retry_cpuset:
 
 		return page;
 	}
-	zl = policy_zonelist(gfp, pol, node);
 	if (unlikely(mpol_needs_cond_ref(pol))) {
 		/*
 		 * slow path: ref counted shared policy
 		 */
-		struct page *page =  __alloc_pages_nodemask(gfp, order,
-						zl, policy_nodemask(gfp, pol));
+		page = alloc_pages_nice(gfp, order, pol, node);
+
 		__mpol_put(pol);
 		if (unlikely(!put_mems_allowed(cpuset_mems_cookie) && !page))
 			goto retry_cpuset;
@@ -1951,10 +2008,10 @@ retry_cpuset:
 	/*
 	 * fast path:  default or task policy
 	 */
-	page = __alloc_pages_nodemask(gfp, order, zl,
-				      policy_nodemask(gfp, pol));
+	page = alloc_pages_nice(gfp, order, pol, node);
 	if (unlikely(!put_mems_allowed(cpuset_mems_cookie) && !page))
 		goto retry_cpuset;
+
 	return page;
 }
 
@@ -1980,8 +2037,8 @@ retry_cpuset:
 struct page *alloc_pages_current(gfp_t gfp, unsigned order)
 {
 	struct mempolicy *pol = current->mempolicy;
-	struct page *page;
 	unsigned int cpuset_mems_cookie;
+	struct page *page;
 
 	if (!pol || in_interrupt() || (gfp & __GFP_THISNODE))
 		pol = default_policy();
@@ -1996,9 +2053,7 @@ retry_cpuset:
 	if (pol->mode == MPOL_INTERLEAVE)
 		page = alloc_page_interleave(gfp, order, interleave_nodes(pol));
 	else
-		page = __alloc_pages_nodemask(gfp, order,
-				policy_zonelist(gfp, pol, numa_node_id()),
-				policy_nodemask(gfp, pol));
+		page = alloc_pages_nice(gfp, order, pol, numa_node_id());
 
 	if (unlikely(!put_mems_allowed(cpuset_mems_cookie) && !page))
 		goto retry_cpuset;
@@ -2275,7 +2330,10 @@ int mpol_misplaced(struct page *page, struct vm_area_struct *vma, unsigned long 
 	cpu_last_access = page_xchg_last_cpu(page, this_cpu);
 
 	pol = get_vma_policy(current, vma, addr);
-	if (!(task_numa_shared(current) >= 0))
+
+	if (task_numa_shared(current) < 0)
+		goto out_keep_page;
+	if (!(pol->flags & MPOL_F_MOF))
 		goto out_keep_page;
 
 	switch (pol->mode) {

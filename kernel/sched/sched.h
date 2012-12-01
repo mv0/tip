@@ -438,9 +438,6 @@ struct rq {
 	struct list_head cfs_tasks;
 
 #ifdef CONFIG_NUMA_BALANCING
-	unsigned long numa_weight;
-	unsigned long nr_numa_running;
-	unsigned long nr_ideal_running;
 	struct task_struct *curr_buddy;
 #endif
 	unsigned long nr_shared_running;	/* 0 on non-NUMA */
@@ -651,7 +648,7 @@ static inline void __set_task_cpu(struct task_struct *p, unsigned int cpu)
 # define const_debug const
 #endif
 
-extern const_debug unsigned int sysctl_sched_features;
+extern const_debug u64 sysctl_sched_features;
 
 #define SCHED_FEAT(name, enabled)	\
 	__SCHED_FEAT_##name ,
@@ -687,7 +684,7 @@ static __always_inline bool static_branch_##name(struct static_key *key) \
 extern struct static_key sched_feat_keys[__SCHED_FEAT_NR];
 #define sched_feat(x) (static_branch_##x(&sched_feat_keys[__SCHED_FEAT_##x]))
 #else /* !(SCHED_DEBUG && HAVE_JUMP_LABEL) */
-#define sched_feat(x) (sysctl_sched_features & (1UL << __SCHED_FEAT_##x))
+#define sched_feat(x) (sysctl_sched_features & (1ULL << __SCHED_FEAT_##x))
 #endif /* SCHED_DEBUG && HAVE_JUMP_LABEL */
 
 #ifdef CONFIG_NUMA_BALANCING
@@ -1260,3 +1257,14 @@ static inline u64 irq_time_read(int cpu)
 }
 #endif /* CONFIG_64BIT */
 #endif /* CONFIG_IRQ_TIME_ACCOUNTING */
+
+#ifdef CONFIG_NUMA_BALANCING
+extern void task_numa_scan_work(struct callback_head *work);
+extern void task_numa_placement_work(struct callback_head *work);
+#endif
+
+#ifdef CONFIG_SMP
+extern void sched_rebalance_to(int dest_cpu, int flip_tasks);
+#else
+static inline void sched_rebalance_to(int dest_cpu, int flip_tasks) { }
+#endif
