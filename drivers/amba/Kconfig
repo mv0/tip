@@ -1,0 +1,10 @@
+
+config PCI_AMBA
+	tristate "PCI-to-AMBA bridge"
+	depends on ARM_AMBA && PCI
+	---help---
+	  This compiles a PCI driver that registers AMBA devices, so
+	  the respective AMBA driver can be used unchanged if you have
+	  a PCI to amba bridge. This is required for STA2X11 support.
+
+	  If uncertain, choose N.
