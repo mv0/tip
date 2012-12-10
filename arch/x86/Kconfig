@@ -523,6 +523,7 @@ config STA2X11
 	select SWIOTLB
 	select MFD_STA2X11
 	select ARCH_REQUIRE_GPIOLIB
+	select ARM_AMBA
 	default n
 	---help---
 	  This adds support for boards based on the STA2X11 IO-Hub,
@@ -2146,6 +2147,9 @@ config GEOS
 	  This option enables system support for the Traverse Technologies GEOS.
 
 endif # X86_32
+
+config ARM_AMBA
+        bool
 
 config AMD_NB
 	def_bool y
