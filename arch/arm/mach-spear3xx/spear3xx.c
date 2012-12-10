@@ -15,9 +15,9 @@
 
 #include <linux/amba/pl022.h>
 #include <linux/amba/pl08x.h>
+#include <linux/amba/pl080.h>
 #include <linux/of_irq.h>
 #include <linux/io.h>
-#include <asm/hardware/pl080.h>
 #include <asm/hardware/vic.h>
 #include <plat/pl080.h>
 #include <mach/generic.h>
