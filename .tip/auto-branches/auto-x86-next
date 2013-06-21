@@ -183,3 +183,4 @@ x86/nuke386
 x86/kaslr
 x86/kdump
 x86/efi2
+x86/trace
