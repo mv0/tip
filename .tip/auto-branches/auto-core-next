@@ -9,3 +9,4 @@ core/types
 core/urgent
 numa/core
 core/efi
+core/mutexes
