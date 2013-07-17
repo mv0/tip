@@ -19,7 +19,7 @@
 #include <asm/prom.h>
 
 
-static int __devinit
+static int
 ohci_ppc_of_start(struct usb_hcd *hcd)
 {
 	struct ohci_hcd	*ohci = hcd_to_ohci(hcd);
@@ -81,7 +81,7 @@ static const struct hc_driver ohci_ppc_of_hc_driver = {
 };
 
 
-static int __devinit ohci_hcd_ppc_of_probe(struct platform_device *op)
+static int ohci_hcd_ppc_of_probe(struct platform_device *op)
 {
 	struct device_node *dn = op->dev.of_node;
 	struct usb_hcd *hcd;
@@ -185,8 +185,7 @@ err_rmr:
 
 static int ohci_hcd_ppc_of_remove(struct platform_device *op)
 {
-	struct usb_hcd *hcd = dev_get_drvdata(&op->dev);
-	dev_set_drvdata(&op->dev, NULL);
+	struct usb_hcd *hcd = platform_get_drvdata(op);
 
 	dev_dbg(&op->dev, "stopping PPC-OF USB Controller\n");
 
@@ -203,7 +202,7 @@ static int ohci_hcd_ppc_of_remove(struct platform_device *op)
 
 static void ohci_hcd_ppc_of_shutdown(struct platform_device *op)
 {
-	struct usb_hcd *hcd = dev_get_drvdata(&op->dev);
+	struct usb_hcd *hcd = platform_get_drvdata(op);
 
         if (hcd->driver->shutdown)
                 hcd->driver->shutdown(hcd);

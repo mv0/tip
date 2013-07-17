@@ -24,7 +24,7 @@
 #include <linux/gpio.h>
 #include <drm/drm_edid.h>
 
-#include <video/omap-panel-tfp410.h>
+#include <video/omap-panel-data.h>
 
 static const struct omap_video_timings tfp410_default_timings = {
 	.x_res		= 640,
@@ -39,6 +39,12 @@ static const struct omap_video_timings tfp410_default_timings = {
 	.vfp		= 3,
 	.vsw		= 4,
 	.vbp		= 7,
+
+	.vsync_level	= OMAPDSS_SIG_ACTIVE_HIGH,
+	.hsync_level	= OMAPDSS_SIG_ACTIVE_HIGH,
+	.data_pclk_edge	= OMAPDSS_DRIVE_SIG_RISING_EDGE,
+	.de_level	= OMAPDSS_SIG_ACTIVE_HIGH,
+	.sync_pclk_edge	= OMAPDSS_DRIVE_SIG_OPPOSITE_EDGES,
 };
 
 struct panel_drv_data {
@@ -53,11 +59,14 @@ struct panel_drv_data {
 
 static int tfp410_power_on(struct omap_dss_device *dssdev)
 {
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
+	struct panel_drv_data *ddata = dev_get_drvdata(dssdev->dev);
 	int r;
 
 	if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE)
 		return 0;
+
+	omapdss_dpi_set_timings(dssdev, &dssdev->panel.timings);
+	omapdss_dpi_set_data_lines(dssdev, dssdev->phy.dpi.data_lines);
 
 	r = omapdss_dpi_display_enable(dssdev);
 	if (r)
@@ -73,7 +82,7 @@ err0:
 
 static void tfp410_power_off(struct omap_dss_device *dssdev)
 {
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
+	struct panel_drv_data *ddata = dev_get_drvdata(dssdev->dev);
 
 	if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE)
 		return;
@@ -90,12 +99,11 @@ static int tfp410_probe(struct omap_dss_device *dssdev)
 	int r;
 	int i2c_bus_num;
 
-	ddata = devm_kzalloc(&dssdev->dev, sizeof(*ddata), GFP_KERNEL);
+	ddata = devm_kzalloc(dssdev->dev, sizeof(*ddata), GFP_KERNEL);
 	if (!ddata)
 		return -ENOMEM;
 
 	dssdev->panel.timings = tfp410_default_timings;
-	dssdev->panel.config = OMAP_DSS_LCD_TFT;
 
 	ddata->dssdev = dssdev;
 	mutex_init(&ddata->lock);
@@ -111,10 +119,10 @@ static int tfp410_probe(struct omap_dss_device *dssdev)
 	}
 
 	if (gpio_is_valid(ddata->pd_gpio)) {
-		r = gpio_request_one(ddata->pd_gpio, GPIOF_OUT_INIT_LOW,
-				"tfp410 pd");
+		r = devm_gpio_request_one(dssdev->dev, ddata->pd_gpio,
+				GPIOF_OUT_INIT_LOW, "tfp410 pd");
 		if (r) {
-			dev_err(&dssdev->dev, "Failed to request PD GPIO %d\n",
+			dev_err(dssdev->dev, "Failed to request PD GPIO %d\n",
 					ddata->pd_gpio);
 			return r;
 		}
@@ -125,44 +133,36 @@ static int tfp410_probe(struct omap_dss_device *dssdev)
 
 		adapter = i2c_get_adapter(i2c_bus_num);
 		if (!adapter) {
-			dev_err(&dssdev->dev, "Failed to get I2C adapter, bus %d\n",
+			dev_err(dssdev->dev, "Failed to get I2C adapter, bus %d\n",
 					i2c_bus_num);
-			r = -EINVAL;
-			goto err_i2c;
+			return -EPROBE_DEFER;
 		}
 
 		ddata->i2c_adapter = adapter;
 	}
 
-	dev_set_drvdata(&dssdev->dev, ddata);
+	dev_set_drvdata(dssdev->dev, ddata);
 
 	return 0;
-err_i2c:
-	if (gpio_is_valid(ddata->pd_gpio))
-		gpio_free(ddata->pd_gpio);
-	return r;
 }
 
 static void __exit tfp410_remove(struct omap_dss_device *dssdev)
 {
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
+	struct panel_drv_data *ddata = dev_get_drvdata(dssdev->dev);
 
 	mutex_lock(&ddata->lock);
 
 	if (ddata->i2c_adapter)
 		i2c_put_adapter(ddata->i2c_adapter);
 
-	if (gpio_is_valid(ddata->pd_gpio))
-		gpio_free(ddata->pd_gpio);
-
-	dev_set_drvdata(&dssdev->dev, NULL);
+	dev_set_drvdata(dssdev->dev, NULL);
 
 	mutex_unlock(&ddata->lock);
 }
 
 static int tfp410_enable(struct omap_dss_device *dssdev)
 {
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
+	struct panel_drv_data *ddata = dev_get_drvdata(dssdev->dev);
 	int r;
 
 	mutex_lock(&ddata->lock);
@@ -178,7 +178,7 @@ static int tfp410_enable(struct omap_dss_device *dssdev)
 
 static void tfp410_disable(struct omap_dss_device *dssdev)
 {
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
+	struct panel_drv_data *ddata = dev_get_drvdata(dssdev->dev);
 
 	mutex_lock(&ddata->lock);
 
@@ -189,51 +189,21 @@ static void tfp410_disable(struct omap_dss_device *dssdev)
 	mutex_unlock(&ddata->lock);
 }
 
-static int tfp410_suspend(struct omap_dss_device *dssdev)
-{
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
-
-	mutex_lock(&ddata->lock);
-
-	tfp410_power_off(dssdev);
-
-	dssdev->state = OMAP_DSS_DISPLAY_SUSPENDED;
-
-	mutex_unlock(&ddata->lock);
-
-	return 0;
-}
-
-static int tfp410_resume(struct omap_dss_device *dssdev)
-{
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
-	int r;
-
-	mutex_lock(&ddata->lock);
-
-	r = tfp410_power_on(dssdev);
-	if (r == 0)
-		dssdev->state = OMAP_DSS_DISPLAY_ACTIVE;
-
-	mutex_unlock(&ddata->lock);
-
-	return r;
-}
-
 static void tfp410_set_timings(struct omap_dss_device *dssdev,
 		struct omap_video_timings *timings)
 {
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
+	struct panel_drv_data *ddata = dev_get_drvdata(dssdev->dev);
 
 	mutex_lock(&ddata->lock);
-	dpi_set_timings(dssdev, timings);
+	omapdss_dpi_set_timings(dssdev, timings);
+	dssdev->panel.timings = *timings;
 	mutex_unlock(&ddata->lock);
 }
 
 static void tfp410_get_timings(struct omap_dss_device *dssdev,
 		struct omap_video_timings *timings)
 {
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
+	struct panel_drv_data *ddata = dev_get_drvdata(dssdev->dev);
 
 	mutex_lock(&ddata->lock);
 	*timings = dssdev->panel.timings;
@@ -243,7 +213,7 @@ static void tfp410_get_timings(struct omap_dss_device *dssdev,
 static int tfp410_check_timings(struct omap_dss_device *dssdev,
 		struct omap_video_timings *timings)
 {
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
+	struct panel_drv_data *ddata = dev_get_drvdata(dssdev->dev);
 	int r;
 
 	mutex_lock(&ddata->lock);
@@ -288,7 +258,7 @@ static int tfp410_ddc_read(struct i2c_adapter *adapter,
 static int tfp410_read_edid(struct omap_dss_device *dssdev,
 		u8 *edid, int len)
 {
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
+	struct panel_drv_data *ddata = dev_get_drvdata(dssdev->dev);
 	int r, l, bytes_read;
 
 	mutex_lock(&ddata->lock);
@@ -328,7 +298,7 @@ err:
 
 static bool tfp410_detect(struct omap_dss_device *dssdev)
 {
-	struct panel_drv_data *ddata = dev_get_drvdata(&dssdev->dev);
+	struct panel_drv_data *ddata = dev_get_drvdata(dssdev->dev);
 	unsigned char out;
 	int r;
 
@@ -354,8 +324,6 @@ static struct omap_dss_driver tfp410_driver = {
 
 	.enable		= tfp410_enable,
 	.disable	= tfp410_disable,
-	.suspend	= tfp410_suspend,
-	.resume		= tfp410_resume,
 
 	.set_timings	= tfp410_set_timings,
 	.get_timings	= tfp410_get_timings,

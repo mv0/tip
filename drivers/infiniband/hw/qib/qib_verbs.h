@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2006, 2007, 2008, 2009, 2010 QLogic Corporation.
- * All rights reserved.
+ * Copyright (c) 2012, 2013 Intel Corporation.  All rights reserved.
+ * Copyright (c) 2006 - 2012 QLogic Corporation. All rights reserved.
  * Copyright (c) 2005, 2006 PathScale, Inc. All rights reserved.
  *
  * This software is available to you under a choice of one of two
@@ -41,6 +41,8 @@
 #include <linux/interrupt.h>
 #include <linux/kref.h>
 #include <linux/workqueue.h>
+#include <linux/kthread.h>
+#include <linux/completion.h>
 #include <rdma/ib_pack.h>
 #include <rdma/ib_user_verbs.h>
 
@@ -266,7 +268,8 @@ struct qib_cq_wc {
  */
 struct qib_cq {
 	struct ib_cq ibcq;
-	struct work_struct comptask;
+	struct kthread_work comptask;
+	struct qib_devdata *dd;
 	spinlock_t lock; /* protect changes in this struct */
 	u8 notify;
 	u8 triggered;
@@ -302,6 +305,9 @@ struct qib_mregion {
 	u32 max_segs;           /* number of qib_segs in all the arrays */
 	u32 mapsz;              /* size of the map array */
 	u8  page_shift;         /* 0 - non unform/non powerof2 sizes */
+	u8  lkey_published;     /* in global table */
+	struct completion comp; /* complete when refcount goes to zero */
+	struct rcu_head list;
 	atomic_t refcount;
 	struct qib_segarray *map[0];    /* the segments */
 };
@@ -416,7 +422,7 @@ struct qib_qp {
 	/* read mostly fields above and below */
 	struct ib_ah_attr remote_ah_attr;
 	struct ib_ah_attr alt_ah_attr;
-	struct qib_qp *next;            /* link list for QPN hash table */
+	struct qib_qp __rcu *next;            /* link list for QPN hash table */
 	struct qib_swqe *s_wq;  /* send work queue */
 	struct qib_mmap_info *ip;
 	struct qib_ib_header *s_hdr;     /* next packet header to send */
@@ -646,7 +652,7 @@ struct qib_lkey_table {
 	u32 next;               /* next unused index (speeds search) */
 	u32 gen;                /* generation count */
 	u32 max;                /* size of the table */
-	struct qib_mregion **table;
+	struct qib_mregion __rcu **table;
 };
 
 struct qib_opcode_stats {
@@ -654,9 +660,13 @@ struct qib_opcode_stats {
 	u64 n_bytes;            /* total number of bytes */
 };
 
+struct qib_opcode_stats_perctx {
+	struct qib_opcode_stats stats[128];
+};
+
 struct qib_ibport {
-	struct qib_qp *qp0;
-	struct qib_qp *qp1;
+	struct qib_qp __rcu *qp0;
+	struct qib_qp __rcu *qp1;
 	struct ib_mad_agent *send_agent;	/* agent for SMI (traps) */
 	struct qib_ah *sm_ah;
 	struct qib_ah *smi_ah;
@@ -720,15 +730,15 @@ struct qib_ibport {
 	u8 vl_high_limit;
 	u8 sl_to_vl[16];
 
-	struct qib_opcode_stats opstats[128];
 };
+
 
 struct qib_ibdev {
 	struct ib_device ibdev;
 	struct list_head pending_mmaps;
 	spinlock_t mmap_offset_lock; /* protect mmap_offset */
 	u32 mmap_offset;
-	struct qib_mregion *dma_mr;
+	struct qib_mregion __rcu *dma_mr;
 
 	/* QP numbers are shared by all IB ports */
 	struct qib_qpn_table qpn_table;
@@ -739,7 +749,7 @@ struct qib_ibdev {
 	struct list_head memwait;       /* list for wait kernel memory */
 	struct list_head txreq_free;
 	struct timer_list mem_timer;
-	struct qib_qp **qp_table;
+	struct qib_qp __rcu **qp_table;
 	struct qib_pio_header *pio_hdrs;
 	dma_addr_t pio_hdrs_phys;
 	/* list of QPs waiting for RNR timer */
@@ -763,6 +773,10 @@ struct qib_ibdev {
 	spinlock_t n_srqs_lock;
 	u32 n_mcast_grps_allocated; /* number of mcast groups allocated */
 	spinlock_t n_mcast_grps_lock;
+#ifdef CONFIG_DEBUG_FS
+	/* per HCA debugfs */
+	struct dentry *qib_ibdev_dbg;
+#endif
 };
 
 struct qib_verbs_counters {
@@ -827,16 +841,10 @@ static inline int qib_send_ok(struct qib_qp *qp)
 		 !(qp->s_flags & QIB_S_ANY_WAIT_SEND));
 }
 
-extern struct workqueue_struct *qib_cq_wq;
-
 /*
  * This must be called with s_lock held.
  */
-static inline void qib_schedule_send(struct qib_qp *qp)
-{
-	if (qib_send_ok(qp))
-		queue_work(ib_wq, &qp->s_work);
-}
+void qib_schedule_send(struct qib_qp *qp);
 
 static inline int qib_pkey_ok(u16 pkey1, u16 pkey2)
 {
@@ -909,6 +917,18 @@ void qib_init_qpn_table(struct qib_devdata *dd, struct qib_qpn_table *qpt);
 
 void qib_free_qpn_table(struct qib_qpn_table *qpt);
 
+#ifdef CONFIG_DEBUG_FS
+
+struct qib_qp_iter;
+
+struct qib_qp_iter *qib_qp_iter_init(struct qib_ibdev *dev);
+
+int qib_qp_iter_next(struct qib_qp_iter *iter);
+
+void qib_qp_iter_print(struct seq_file *s, struct qib_qp_iter *iter);
+
+#endif
+
 void qib_get_credit(struct qib_qp *qp, u32 aeth);
 
 unsigned qib_pkt_delay(u32 plen, u8 snd_mult, u8 rcv_mult);
@@ -933,6 +953,8 @@ void qib_rc_rcv(struct qib_ctxtdata *rcd, struct qib_ib_header *hdr,
 
 int qib_check_ah(struct ib_device *ibdev, struct ib_ah_attr *ah_attr);
 
+struct ib_ah *qib_create_qp0_ah(struct qib_ibport *ibp, u16 dlid);
+
 void qib_rc_rnr_retry(unsigned long arg);
 
 void qib_rc_send_complete(struct qib_qp *qp, struct qib_ib_header *hdr);
@@ -944,9 +966,9 @@ int qib_post_ud_send(struct qib_qp *qp, struct ib_send_wr *wr);
 void qib_ud_rcv(struct qib_ibport *ibp, struct qib_ib_header *hdr,
 		int has_grh, void *data, u32 tlen, struct qib_qp *qp);
 
-int qib_alloc_lkey(struct qib_lkey_table *rkt, struct qib_mregion *mr);
+int qib_alloc_lkey(struct qib_mregion *mr, int dma_region);
 
-int qib_free_lkey(struct qib_ibdev *dev, struct qib_mregion *mr);
+void qib_free_lkey(struct qib_mregion *mr);
 
 int qib_lkey_ok(struct qib_lkey_table *rkt, struct qib_pd *pd,
 		struct qib_sge *isge, struct ib_sge *sge, int acc);
@@ -968,6 +990,10 @@ int qib_modify_srq(struct ib_srq *ibsrq, struct ib_srq_attr *attr,
 int qib_query_srq(struct ib_srq *ibsrq, struct ib_srq_attr *attr);
 
 int qib_destroy_srq(struct ib_srq *ibsrq);
+
+int qib_cq_init(struct qib_devdata *dd);
+
+void qib_cq_exit(struct qib_devdata *dd);
 
 void qib_cq_enter(struct qib_cq *cq, struct ib_wc *entry, int sig);
 
@@ -1013,6 +1039,29 @@ int qib_map_phys_fmr(struct ib_fmr *ibfmr, u64 *page_list,
 int qib_unmap_fmr(struct list_head *fmr_list);
 
 int qib_dealloc_fmr(struct ib_fmr *ibfmr);
+
+static inline void qib_get_mr(struct qib_mregion *mr)
+{
+	atomic_inc(&mr->refcount);
+}
+
+void mr_rcu_callback(struct rcu_head *list);
+
+static inline void qib_put_mr(struct qib_mregion *mr)
+{
+	if (unlikely(atomic_dec_and_test(&mr->refcount)))
+		call_rcu(&mr->list, mr_rcu_callback);
+}
+
+static inline void qib_put_ss(struct qib_sge_state *ss)
+{
+	while (ss->num_sge) {
+		qib_put_mr(ss->sge.mr);
+		if (--ss->num_sge)
+			ss->sge = *ss->sg_list++;
+	}
+}
+
 
 void qib_release_mmap_info(struct kref *ref);
 

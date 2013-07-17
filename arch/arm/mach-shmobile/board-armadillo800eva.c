@@ -24,10 +24,16 @@
 #include <linux/err.h>
 #include <linux/kernel.h>
 #include <linux/input.h>
+#include <linux/platform_data/st1232_pdata.h>
 #include <linux/irq.h>
 #include <linux/platform_device.h>
 #include <linux/gpio.h>
 #include <linux/gpio_keys.h>
+#include <linux/regulator/driver.h>
+#include <linux/pinctrl/machine.h>
+#include <linux/regulator/fixed.h>
+#include <linux/regulator/gpio-regulator.h>
+#include <linux/regulator/machine.h>
 #include <linux/sh_eth.h>
 #include <linux/videodev2.h>
 #include <linux/usb/renesas_usbhs.h>
@@ -35,16 +41,26 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/sh_mmcif.h>
 #include <linux/mmc/sh_mobile_sdhi.h>
+#include <linux/i2c-gpio.h>
+#include <linux/reboot.h>
 #include <mach/common.h>
 #include <mach/irqs.h>
+#include <mach/r8a7740.h>
+#include <media/mt9t112.h>
+#include <media/sh_mobile_ceu.h>
+#include <media/soc_camera.h>
 #include <asm/page.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include <asm/mach/time.h>
 #include <asm/hardware/cache-l2x0.h>
-#include <mach/r8a7740.h>
 #include <video/sh_mobile_lcdc.h>
+#include <video/sh_mobile_hdmi.h>
+#include <sound/sh_fsi.h>
+#include <sound/simple_card.h>
+
+#include "sh-gpio.h"
 
 /*
  * CON1		Camera Module
@@ -108,6 +124,22 @@
  */
 
 /*
+ * FSI-WM8978
+ *
+ * this command is required when playback.
+ *
+ * # amixer set "Headphone" 50
+ *
+ * this command is required when capture.
+ *
+ * # amixer set "Input PGA" 15
+ * # amixer set "Left Input Mixer MicP" on
+ * # amixer set "Left Input Mixer MicN" on
+ * # amixer set "Right Input Mixer MicN" on
+ * # amixer set "Right Input Mixer MicP" on
+ */
+
+/*
  * USB function
  *
  * When you use USB Function,
@@ -117,15 +149,9 @@
  * These are a little bit complex.
  * see
  *	usbhsf_power_ctrl()
- *
- * CAUTION
- *
- * It uses autonomy mode for USB hotplug at this point
- * (= usbhs_private.platform_callback.get_vbus is NULL),
- * since we don't know what's happen on PM control
- * on this workaround.
  */
-#define USBCR1		0xe605810a
+#define IRQ7		irq_pin(7)
+#define USBCR1		IOMEM(0xe605810a)
 #define USBH		0xC6700000
 #define USBH_USBCTR	0x10834
 
@@ -148,7 +174,7 @@ static int usbhsf_get_id(struct platform_device *pdev)
 	return USBHS_GADGET;
 }
 
-static void usbhsf_power_ctrl(struct platform_device *pdev,
+static int usbhsf_power_ctrl(struct platform_device *pdev,
 			      void __iomem *base, int enable)
 {
 	struct usbhsf_private *priv = usbhsf_get_priv(pdev);
@@ -202,9 +228,25 @@ static void usbhsf_power_ctrl(struct platform_device *pdev,
 		clk_disable(priv->pci);		/* usb work around */
 		clk_disable(priv->usb24);	/* usb work around */
 	}
+
+	return 0;
 }
 
-static void usbhsf_hardware_exit(struct platform_device *pdev)
+static int usbhsf_get_vbus(struct platform_device *pdev)
+{
+	return gpio_get_value(209);
+}
+
+static irqreturn_t usbhsf_interrupt(int irq, void *data)
+{
+	struct platform_device *pdev = data;
+
+	renesas_usbhs_call_notify_hotplug(pdev);
+
+	return IRQ_HANDLED;
+}
+
+static int usbhsf_hardware_exit(struct platform_device *pdev)
 {
 	struct usbhsf_private *priv = usbhsf_get_priv(pdev);
 
@@ -227,11 +269,16 @@ static void usbhsf_hardware_exit(struct platform_device *pdev)
 	priv->host	= NULL;
 	priv->func	= NULL;
 	priv->usbh_base	= NULL;
+
+	free_irq(IRQ7, pdev);
+
+	return 0;
 }
 
 static int usbhsf_hardware_init(struct platform_device *pdev)
 {
 	struct usbhsf_private *priv = usbhsf_get_priv(pdev);
+	int ret;
 
 	priv->phy	= clk_get(&pdev->dev, "phy");
 	priv->usb24	= clk_get(&pdev->dev, "usb24");
@@ -251,6 +298,14 @@ static int usbhsf_hardware_init(struct platform_device *pdev)
 		return -EIO;
 	}
 
+	ret = request_irq(IRQ7, usbhsf_interrupt, IRQF_TRIGGER_NONE,
+			  dev_name(&pdev->dev), pdev);
+	if (ret) {
+		dev_err(&pdev->dev, "request_irq err\n");
+		return ret;
+	}
+	irq_set_irq_type(IRQ7, IRQ_TYPE_EDGE_BOTH);
+
 	/* usb24 use 1/1 of parent clock (= usb24s = 24MHz) */
 	clk_set_rate(priv->usb24,
 		     clk_get_rate(clk_get_parent(priv->usb24)));
@@ -262,6 +317,7 @@ static struct usbhsf_private usbhsf_private = {
 	.info = {
 		.platform_callback = {
 			.get_id		= usbhsf_get_id,
+			.get_vbus	= usbhsf_get_vbus,
 			.hardware_init	= usbhsf_hardware_init,
 			.hardware_exit	= usbhsf_hardware_exit,
 			.power_ctrl	= usbhsf_power_ctrl,
@@ -269,6 +325,8 @@ static struct usbhsf_private usbhsf_private = {
 		.driver_param = {
 			.buswait_bwait		= 5,
 			.detection_delay	= 5,
+			.d0_rx_id	= SHDMA_SLAVE_USBHS_RX,
+			.d1_tx_id	= SHDMA_SLAVE_USBHS_TX,
 		},
 	}
 };
@@ -281,7 +339,7 @@ static struct resource usbhsf_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	{
-		.start	= evt2irq(0x0A20),
+		.start	= gic_spi(51),
 		.flags	= IORESOURCE_IRQ,
 	},
 };
@@ -314,13 +372,13 @@ static struct resource sh_eth_resources[] = {
 		.end	= 0xe9a02000 - 1,
 		.flags	= IORESOURCE_MEM,
 	}, {
-		.start	= evt2irq(0x0500),
+		.start	= gic_spi(110),
 		.flags	= IORESOURCE_IRQ,
 	},
 };
 
 static struct platform_device sh_eth_device = {
-	.name = "sh-eth",
+	.name = "r8a7740-gether",
 	.id = -1,
 	.dev = {
 		.platform_data = &sh_eth_platdata,
@@ -368,7 +426,7 @@ static struct resource lcdc0_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
-		.start	= intcs_evt2irq(0x580),
+		.start	= gic_spi(177),
 		.flags	= IORESOURCE_IRQ,
 	},
 };
@@ -384,14 +442,112 @@ static struct platform_device lcdc0_device = {
 	},
 };
 
+/*
+ * LCDC1/HDMI
+ */
+static struct sh_mobile_hdmi_info hdmi_info = {
+	.flags		= HDMI_OUTPUT_PUSH_PULL |
+			  HDMI_OUTPUT_POLARITY_HI |
+			  HDMI_32BIT_REG |
+			  HDMI_HAS_HTOP1 |
+			  HDMI_SND_SRC_SPDIF,
+};
+
+static struct resource hdmi_resources[] = {
+	[0] = {
+		.name	= "HDMI",
+		.start	= 0xe6be0000,
+		.end	= 0xe6be03ff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= gic_spi(131),
+		.flags	= IORESOURCE_IRQ,
+	},
+	[2] = {
+		.name	= "HDMI emma3pf",
+		.start	= 0xe6be4000,
+		.end	= 0xe6be43ff,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device hdmi_device = {
+	.name		= "sh-mobile-hdmi",
+	.num_resources	= ARRAY_SIZE(hdmi_resources),
+	.resource	= hdmi_resources,
+	.id             = -1,
+	.dev	= {
+		.platform_data	= &hdmi_info,
+	},
+};
+
+static const struct fb_videomode lcdc1_mode = {
+	.name		= "HDMI 720p",
+	.xres		= 1280,
+	.yres		= 720,
+	.pixclock	= 13468,
+	.left_margin	= 220,
+	.right_margin	= 110,
+	.hsync_len	= 40,
+	.upper_margin	= 20,
+	.lower_margin	= 5,
+	.vsync_len	= 5,
+	.refresh	= 60,
+	.sync		= FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
+};
+
+static struct sh_mobile_lcdc_info hdmi_lcdc_info = {
+	.clock_source	= LCDC_CLK_PERIPHERAL, /* HDMI clock */
+	.ch[0] = {
+		.chan			= LCDC_CHAN_MAINLCD,
+		.fourcc			= V4L2_PIX_FMT_RGB565,
+		.interface_type		= RGB24,
+		.clock_divider		= 1,
+		.flags			= LCDC_FLAGS_DWPOL,
+		.lcd_modes		= &lcdc1_mode,
+		.num_modes		= 1,
+		.tx_dev			= &hdmi_device,
+		.panel_cfg = {
+			.width	= 1280,
+			.height = 720,
+		},
+	},
+};
+
+static struct resource hdmi_lcdc_resources[] = {
+	[0] = {
+		.name	= "LCDC1",
+		.start	= 0xfe944000,
+		.end	= 0xfe948000 - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= gic_spi(178),
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device hdmi_lcdc_device = {
+	.name		= "sh_mobile_lcdc_fb",
+	.num_resources	= ARRAY_SIZE(hdmi_lcdc_resources),
+	.resource	= hdmi_lcdc_resources,
+	.id		= 1,
+	.dev	= {
+		.platform_data	= &hdmi_lcdc_info,
+		.coherent_dma_mask = ~0,
+	},
+};
+
 /* GPIO KEY */
-#define GPIO_KEY(c, g, d) { .code = c, .gpio = g, .desc = d, .active_low = 1 }
+#define GPIO_KEY(c, g, d, ...) \
+	{ .code = c, .gpio = g, .desc = d, .active_low = 1, __VA_ARGS__ }
 
 static struct gpio_keys_button gpio_buttons[] = {
-	GPIO_KEY(KEY_POWER,	GPIO_PORT99,	"SW1"),
-	GPIO_KEY(KEY_BACK,	GPIO_PORT100,	"SW2"),
-	GPIO_KEY(KEY_MENU,	GPIO_PORT97,	"SW3"),
-	GPIO_KEY(KEY_HOME,	GPIO_PORT98,	"SW4"),
+	GPIO_KEY(KEY_POWER,	99,	"SW3", .wakeup = 1),
+	GPIO_KEY(KEY_BACK,	100,	"SW4"),
+	GPIO_KEY(KEY_MENU,	97,	"SW5"),
+	GPIO_KEY(KEY_HOME,	98,	"SW6"),
 };
 
 static struct gpio_keys_platform_data gpio_key_info = {
@@ -407,6 +563,121 @@ static struct platform_device gpio_keys_device = {
 	},
 };
 
+/* Fixed 3.3V regulator to be used by SDHI1, MMCIF */
+static struct regulator_consumer_supply fixed3v3_power_consumers[] = {
+	REGULATOR_SUPPLY("vmmc", "sh_mmcif"),
+	REGULATOR_SUPPLY("vqmmc", "sh_mmcif"),
+};
+
+/* Fixed 3.3V regulator to be used by SDHI0 */
+static struct regulator_consumer_supply vcc_sdhi0_consumers[] = {
+	REGULATOR_SUPPLY("vmmc", "sh_mobile_sdhi.0"),
+};
+
+static struct regulator_init_data vcc_sdhi0_init_data = {
+	.constraints = {
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies  = ARRAY_SIZE(vcc_sdhi0_consumers),
+	.consumer_supplies      = vcc_sdhi0_consumers,
+};
+
+static struct fixed_voltage_config vcc_sdhi0_info = {
+	.supply_name = "SDHI0 Vcc",
+	.microvolts = 3300000,
+	.gpio = 75,
+	.enable_high = 1,
+	.init_data = &vcc_sdhi0_init_data,
+};
+
+static struct platform_device vcc_sdhi0 = {
+	.name = "reg-fixed-voltage",
+	.id   = 1,
+	.dev  = {
+		.platform_data = &vcc_sdhi0_info,
+	},
+};
+
+/* 1.8 / 3.3V SDHI0 VccQ regulator */
+static struct regulator_consumer_supply vccq_sdhi0_consumers[] = {
+	REGULATOR_SUPPLY("vqmmc", "sh_mobile_sdhi.0"),
+};
+
+static struct regulator_init_data vccq_sdhi0_init_data = {
+	.constraints = {
+		.input_uV	= 3300000,
+		.min_uV		= 1800000,
+		.max_uV         = 3300000,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+				  REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies  = ARRAY_SIZE(vccq_sdhi0_consumers),
+	.consumer_supplies      = vccq_sdhi0_consumers,
+};
+
+static struct gpio vccq_sdhi0_gpios[] = {
+	{17, GPIOF_OUT_INIT_LOW, "vccq-sdhi0" },
+};
+
+static struct gpio_regulator_state vccq_sdhi0_states[] = {
+	{ .value = 3300000, .gpios = (0 << 0) },
+	{ .value = 1800000, .gpios = (1 << 0) },
+};
+
+static struct gpio_regulator_config vccq_sdhi0_info = {
+	.supply_name = "vqmmc",
+
+	.enable_gpio = 74,
+	.enable_high = 1,
+	.enabled_at_boot = 0,
+
+	.gpios = vccq_sdhi0_gpios,
+	.nr_gpios = ARRAY_SIZE(vccq_sdhi0_gpios),
+
+	.states = vccq_sdhi0_states,
+	.nr_states = ARRAY_SIZE(vccq_sdhi0_states),
+
+	.type = REGULATOR_VOLTAGE,
+	.init_data = &vccq_sdhi0_init_data,
+};
+
+static struct platform_device vccq_sdhi0 = {
+	.name = "gpio-regulator",
+	.id   = -1,
+	.dev  = {
+		.platform_data = &vccq_sdhi0_info,
+	},
+};
+
+/* Fixed 3.3V regulator to be used by SDHI1 */
+static struct regulator_consumer_supply vcc_sdhi1_consumers[] = {
+	REGULATOR_SUPPLY("vmmc", "sh_mobile_sdhi.1"),
+};
+
+static struct regulator_init_data vcc_sdhi1_init_data = {
+	.constraints = {
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies  = ARRAY_SIZE(vcc_sdhi1_consumers),
+	.consumer_supplies      = vcc_sdhi1_consumers,
+};
+
+static struct fixed_voltage_config vcc_sdhi1_info = {
+	.supply_name = "SDHI1 Vcc",
+	.microvolts = 3300000,
+	.gpio = 16,
+	.enable_high = 1,
+	.init_data = &vcc_sdhi1_init_data,
+};
+
+static struct platform_device vcc_sdhi1 = {
+	.name = "reg-fixed-voltage",
+	.id   = 2,
+	.dev  = {
+		.platform_data = &vcc_sdhi1_info,
+	},
+};
+
 /* SDHI0 */
 /*
  * FIXME
@@ -416,12 +687,14 @@ static struct platform_device gpio_keys_device = {
  * We can use IRQ31 as card detect irq,
  * but it needs chattering removal operation
  */
-#define IRQ31	evt2irq(0x33E0)
+#define IRQ31	irq_pin(31)
 static struct sh_mobile_sdhi_info sdhi0_info = {
-	.tmio_caps	= MMC_CAP_SD_HIGHSPEED | MMC_CAP_SDIO_IRQ |\
-			  MMC_CAP_NEEDS_POLL,
-	.tmio_ocr_mask	= MMC_VDD_165_195 | MMC_VDD_32_33 | MMC_VDD_33_34,
-	.tmio_flags	= TMIO_MMC_HAS_IDLE_WAIT,
+	.dma_slave_tx	= SHDMA_SLAVE_SDHI0_TX,
+	.dma_slave_rx	= SHDMA_SLAVE_SDHI0_RX,
+	.tmio_caps	= MMC_CAP_SD_HIGHSPEED | MMC_CAP_SDIO_IRQ |
+			  MMC_CAP_POWER_OFF_CARD,
+	.tmio_flags	= TMIO_MMC_HAS_IDLE_WAIT | TMIO_MMC_USE_GPIO_CD,
+	.cd_gpio	= 167,
 };
 
 static struct resource sdhi0_resources[] = {
@@ -436,12 +709,12 @@ static struct resource sdhi0_resources[] = {
 	 */
 	{
 		.name	= SH_MOBILE_SDHI_IRQ_SDCARD,
-		.start	= evt2irq(0x0E20),
+		.start	= gic_spi(118),
 		.flags	= IORESOURCE_IRQ,
 	},
 	{
 		.name	= SH_MOBILE_SDHI_IRQ_SDIO,
-		.start	= evt2irq(0x0E40),
+		.start	= gic_spi(119),
 		.flags	= IORESOURCE_IRQ,
 	},
 };
@@ -458,9 +731,13 @@ static struct platform_device sdhi0_device = {
 
 /* SDHI1 */
 static struct sh_mobile_sdhi_info sdhi1_info = {
-	.tmio_caps	= MMC_CAP_SD_HIGHSPEED | MMC_CAP_SDIO_IRQ,
-	.tmio_ocr_mask	= MMC_VDD_165_195 | MMC_VDD_32_33 | MMC_VDD_33_34,
-	.tmio_flags	= TMIO_MMC_HAS_IDLE_WAIT,
+	.dma_slave_tx	= SHDMA_SLAVE_SDHI1_TX,
+	.dma_slave_rx	= SHDMA_SLAVE_SDHI1_RX,
+	.tmio_caps	= MMC_CAP_SD_HIGHSPEED | MMC_CAP_SDIO_IRQ |
+			  MMC_CAP_POWER_OFF_CARD,
+	.tmio_flags	= TMIO_MMC_HAS_IDLE_WAIT | TMIO_MMC_USE_GPIO_CD,
+	/* Port72 cannot generate IRQs, will be used in polling mode. */
+	.cd_gpio	= 72,
 };
 
 static struct resource sdhi1_resources[] = {
@@ -471,15 +748,15 @@ static struct resource sdhi1_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
-		.start	= evt2irq(0x0E80),
+		.start	= gic_spi(121),
 		.flags	= IORESOURCE_IRQ,
 	},
 	[2] = {
-		.start	= evt2irq(0x0EA0),
+		.start	= gic_spi(122),
 		.flags	= IORESOURCE_IRQ,
 	},
 	[3] = {
-		.start	= evt2irq(0x0EC0),
+		.start	= gic_spi(123),
 		.flags	= IORESOURCE_IRQ,
 	},
 };
@@ -494,10 +771,20 @@ static struct platform_device sdhi1_device = {
 	.resource	= sdhi1_resources,
 };
 
+static const struct pinctrl_map eva_sdhi1_pinctrl_map[] = {
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_sdhi.1", "pfc-r8a7740",
+				  "sdhi1_data4", "sdhi1"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_sdhi.1", "pfc-r8a7740",
+				  "sdhi1_ctrl", "sdhi1"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_sdhi.1", "pfc-r8a7740",
+				  "sdhi1_cd", "sdhi1"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_sdhi.1", "pfc-r8a7740",
+				  "sdhi1_wp", "sdhi1"),
+};
+
 /* MMCIF */
 static struct sh_mmcif_plat_data sh_mmcif_plat = {
 	.sup_pclk	= 0,
-	.ocr		= MMC_VDD_165_195 | MMC_VDD_32_33 | MMC_VDD_33_34,
 	.caps		= MMC_CAP_4_BIT_DATA |
 			  MMC_CAP_8_BIT_DATA |
 			  MMC_CAP_NONREMOVABLE,
@@ -512,12 +799,12 @@ static struct resource sh_mmcif_resources[] = {
 	},
 	[1] = {
 		/* MMC ERR */
-		.start	= evt2irq(0x1AC0),
+		.start	= gic_spi(56),
 		.flags	= IORESOURCE_IRQ,
 	},
 	[2] = {
 		/* MMC NOR */
-		.start	= evt2irq(0x1AE0),
+		.start	= gic_spi(57),
 		.flags	= IORESOURCE_IRQ,
 	},
 };
@@ -532,11 +819,209 @@ static struct platform_device sh_mmcif_device = {
 	.resource	= sh_mmcif_resources,
 };
 
+/* Camera */
+static int mt9t111_power(struct device *dev, int mode)
+{
+	struct clk *mclk = clk_get(NULL, "video1");
+
+	if (IS_ERR(mclk)) {
+		dev_err(dev, "can't get video1 clock\n");
+		return -EINVAL;
+	}
+
+	if (mode) {
+		/* video1 (= CON1 camera) expect 24MHz */
+		clk_set_rate(mclk, clk_round_rate(mclk, 24000000));
+		clk_enable(mclk);
+		gpio_set_value(158, 1);
+	} else {
+		gpio_set_value(158, 0);
+		clk_disable(mclk);
+	}
+
+	clk_put(mclk);
+
+	return 0;
+}
+
+static struct i2c_board_info i2c_camera_mt9t111 = {
+	I2C_BOARD_INFO("mt9t112", 0x3d),
+};
+
+static struct mt9t112_camera_info mt9t111_info = {
+	.divider = { 16, 0, 0, 7, 0, 10, 14, 7, 7 },
+};
+
+static struct soc_camera_link mt9t111_link = {
+	.i2c_adapter_id	= 0,
+	.bus_id		= 0,
+	.board_info	= &i2c_camera_mt9t111,
+	.power		= mt9t111_power,
+	.priv		= &mt9t111_info,
+};
+
+static struct platform_device camera_device = {
+	.name	= "soc-camera-pdrv",
+	.id	= 0,
+	.dev	= {
+		.platform_data = &mt9t111_link,
+	},
+};
+
+/* CEU0 */
+static struct sh_mobile_ceu_info sh_mobile_ceu0_info = {
+	.flags = SH_CEU_FLAG_LOWER_8BIT,
+};
+
+static struct resource ceu0_resources[] = {
+	[0] = {
+		.name	= "CEU",
+		.start	= 0xfe910000,
+		.end	= 0xfe91009f,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = gic_spi(160),
+		.flags  = IORESOURCE_IRQ,
+	},
+	[2] = {
+		/* place holder for contiguous memory */
+	},
+};
+
+static struct platform_device ceu0_device = {
+	.name		= "sh_mobile_ceu",
+	.id		= 0,
+	.num_resources	= ARRAY_SIZE(ceu0_resources),
+	.resource	= ceu0_resources,
+	.dev	= {
+		.platform_data		= &sh_mobile_ceu0_info,
+		.coherent_dma_mask	= 0xffffffff,
+	},
+};
+
+/* FSI */
+static struct sh_fsi_platform_info fsi_info = {
+	/* FSI-WM8978 */
+	.port_a = {
+		.tx_id = SHDMA_SLAVE_FSIA_TX,
+	},
+	/* FSI-HDMI */
+	.port_b = {
+		.flags		= SH_FSI_FMT_SPDIF |
+				  SH_FSI_ENABLE_STREAM_MODE |
+				  SH_FSI_CLK_CPG,
+		.tx_id		= SHDMA_SLAVE_FSIB_TX,
+	}
+};
+
+static struct resource fsi_resources[] = {
+	[0] = {
+		.name	= "FSI",
+		.start	= 0xfe1f0000,
+		.end	= 0xfe1f8400 - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = gic_spi(9),
+		.flags  = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device fsi_device = {
+	.name		= "sh_fsi2",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(fsi_resources),
+	.resource	= fsi_resources,
+	.dev	= {
+		.platform_data	= &fsi_info,
+	},
+};
+
+/* FSI-WM8978 */
+static struct asoc_simple_card_info fsi_wm8978_info = {
+	.name		= "wm8978",
+	.card		= "FSI2A-WM8978",
+	.codec		= "wm8978.0-001a",
+	.platform	= "sh_fsi2",
+	.daifmt		= SND_SOC_DAIFMT_I2S,
+	.cpu_dai = {
+		.name	= "fsia-dai",
+		.fmt	= SND_SOC_DAIFMT_CBS_CFS | SND_SOC_DAIFMT_IB_NF,
+	},
+	.codec_dai = {
+		.name	= "wm8978-hifi",
+		.fmt	= SND_SOC_DAIFMT_CBM_CFM | SND_SOC_DAIFMT_NB_NF,
+		.sysclk	= 12288000,
+	},
+};
+
+static struct platform_device fsi_wm8978_device = {
+	.name	= "asoc-simple-card",
+	.id	= 0,
+	.dev	= {
+		.platform_data	= &fsi_wm8978_info,
+	},
+};
+
+/* FSI-HDMI */
+static struct asoc_simple_card_info fsi2_hdmi_info = {
+	.name		= "HDMI",
+	.card		= "FSI2B-HDMI",
+	.codec		= "sh-mobile-hdmi",
+	.platform	= "sh_fsi2",
+	.cpu_dai = {
+		.name	= "fsib-dai",
+		.fmt	= SND_SOC_DAIFMT_CBM_CFM,
+	},
+	.codec_dai = {
+		.name = "sh_mobile_hdmi-hifi",
+	},
+};
+
+static struct platform_device fsi_hdmi_device = {
+	.name	= "asoc-simple-card",
+	.id	= 1,
+	.dev	= {
+		.platform_data	= &fsi2_hdmi_info,
+	},
+};
+
+/* RTC: RTC connects i2c-gpio. */
+static struct i2c_gpio_platform_data i2c_gpio_data = {
+	.sda_pin	= 208,
+	.scl_pin	= 91,
+	.udelay		= 5, /* 100 kHz */
+};
+
+static struct platform_device i2c_gpio_device = {
+	.name = "i2c-gpio",
+	.id = 2,
+	.dev = {
+		.platform_data = &i2c_gpio_data,
+	},
+};
+
 /* I2C */
+static struct st1232_pdata st1232_i2c0_pdata = {
+	.reset_gpio = 166,
+};
+
 static struct i2c_board_info i2c0_devices[] = {
 	{
 		I2C_BOARD_INFO("st1232-ts", 0x55),
-		.irq = evt2irq(0x0340),
+		.irq = irq_pin(10),
+		.platform_data = &st1232_i2c0_pdata,
+	},
+	{
+		I2C_BOARD_INFO("wm8978", 0x1a),
+	},
+};
+
+static struct i2c_board_info i2c2_devices[] = {
+	{
+		I2C_BOARD_INFO("s35390a", 0x30),
+		.type = "s35390a",
 	},
 };
 
@@ -547,8 +1032,78 @@ static struct platform_device *eva_devices[] __initdata = {
 	&lcdc0_device,
 	&gpio_keys_device,
 	&sh_eth_device,
+	&vcc_sdhi0,
+	&vccq_sdhi0,
 	&sdhi0_device,
 	&sh_mmcif_device,
+	&hdmi_device,
+	&hdmi_lcdc_device,
+	&camera_device,
+	&ceu0_device,
+	&fsi_device,
+	&fsi_wm8978_device,
+	&fsi_hdmi_device,
+	&i2c_gpio_device,
+};
+
+static const struct pinctrl_map eva_pinctrl_map[] = {
+	/* CEU0 */
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_ceu.0", "pfc-r8a7740",
+				  "ceu0_data_0_7", "ceu0"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_ceu.0", "pfc-r8a7740",
+				  "ceu0_clk_0", "ceu0"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_ceu.0", "pfc-r8a7740",
+				  "ceu0_sync", "ceu0"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_ceu.0", "pfc-r8a7740",
+				  "ceu0_field", "ceu0"),
+	/* FSIA */
+	PIN_MAP_MUX_GROUP_DEFAULT("asoc-simple-card.0", "pfc-r8a7740",
+				  "fsia_sclk_in", "fsia"),
+	PIN_MAP_MUX_GROUP_DEFAULT("asoc-simple-card.0", "pfc-r8a7740",
+				  "fsia_mclk_out", "fsia"),
+	PIN_MAP_MUX_GROUP_DEFAULT("asoc-simple-card.0", "pfc-r8a7740",
+				  "fsia_data_in_1", "fsia"),
+	PIN_MAP_MUX_GROUP_DEFAULT("asoc-simple-card.0", "pfc-r8a7740",
+				  "fsia_data_out_0", "fsia"),
+	/* FSIB */
+	PIN_MAP_MUX_GROUP_DEFAULT("asoc-simple-card.1", "pfc-r8a7740",
+				  "fsib_mclk_in", "fsib"),
+	/* GETHER */
+	PIN_MAP_MUX_GROUP_DEFAULT("sh-eth", "pfc-r8a7740",
+				  "gether_mii", "gether"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh-eth", "pfc-r8a7740",
+				  "gether_int", "gether"),
+	/* HDMI */
+	PIN_MAP_MUX_GROUP_DEFAULT("sh-mobile-hdmi", "pfc-r8a7740",
+				  "hdmi", "hdmi"),
+	/* LCD0 */
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_lcdc_fb.0", "pfc-r8a7740",
+				  "lcd0_data24_0", "lcd0"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_lcdc_fb.0", "pfc-r8a7740",
+				  "lcd0_lclk_1", "lcd0"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_lcdc_fb.0", "pfc-r8a7740",
+				  "lcd0_sync", "lcd0"),
+	/* MMCIF */
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mmcif.0", "pfc-r8a7740",
+				  "mmc0_data8_1", "mmc0"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mmcif.0", "pfc-r8a7740",
+				  "mmc0_ctrl_1", "mmc0"),
+	/* SCIFA1 */
+	PIN_MAP_MUX_GROUP_DEFAULT("sh-sci.1", "pfc-r8a7740",
+				  "scifa1_data", "scifa1"),
+	/* SDHI0 */
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_sdhi.0", "pfc-r8a7740",
+				  "sdhi0_data4", "sdhi0"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_sdhi.0", "pfc-r8a7740",
+				  "sdhi0_ctrl", "sdhi0"),
+	PIN_MAP_MUX_GROUP_DEFAULT("sh_mobile_sdhi.0", "pfc-r8a7740",
+				  "sdhi0_wp", "sdhi0"),
+	/* ST1232 */
+	PIN_MAP_MUX_GROUP_DEFAULT("0-0055", "pfc-r8a7740",
+				  "intc_irq10", "intc"),
+	/* USBHS */
+	PIN_MAP_MUX_GROUP_DEFAULT("renesas_usbhs", "pfc-r8a7740",
+				  "intc_irq7_1", "intc"),
 };
 
 static void __init eva_clock_init(void)
@@ -556,10 +1111,12 @@ static void __init eva_clock_init(void)
 	struct clk *system	= clk_get(NULL, "system_clk");
 	struct clk *xtal1	= clk_get(NULL, "extal1");
 	struct clk *usb24s	= clk_get(NULL, "usb24s");
+	struct clk *fsibck	= clk_get(NULL, "fsibck");
 
 	if (IS_ERR(system)	||
 	    IS_ERR(xtal1)	||
-	    IS_ERR(usb24s)) {
+	    IS_ERR(usb24s)	||
+	    IS_ERR(fsibck)) {
 		pr_err("armadillo800eva board clock init failed\n");
 		goto clock_error;
 	}
@@ -570,6 +1127,9 @@ static void __init eva_clock_init(void)
 	/* usb24s use extal1 (= system) clock (= 24MHz) */
 	clk_set_parent(usb24s, system);
 
+	/* FSIBCK is 12.288MHz, and it is parent of FSI-B */
+	clk_set_rate(fsibck, 12288000);
+
 clock_error:
 	if (!IS_ERR(system))
 		clk_put(system);
@@ -577,134 +1137,67 @@ clock_error:
 		clk_put(xtal1);
 	if (!IS_ERR(usb24s))
 		clk_put(usb24s);
+	if (!IS_ERR(fsibck))
+		clk_put(fsibck);
 }
 
 /*
  * board init
  */
+#define GPIO_PORT7CR	IOMEM(0xe6050007)
+#define GPIO_PORT8CR	IOMEM(0xe6050008)
 static void __init eva_init(void)
 {
-	eva_clock_init();
+	struct platform_device *usb = NULL;
+
+	regulator_register_always_on(0, "fixed-3.3V", fixed3v3_power_consumers,
+				     ARRAY_SIZE(fixed3v3_power_consumers), 3300000);
+
+	pinctrl_register_mappings(eva_pinctrl_map, ARRAY_SIZE(eva_pinctrl_map));
 
 	r8a7740_pinmux_init();
-
-	/* SCIFA1 */
-	gpio_request(GPIO_FN_SCIFA1_RXD, NULL);
-	gpio_request(GPIO_FN_SCIFA1_TXD, NULL);
+	r8a7740_meram_workaround();
 
 	/* LCDC0 */
-	gpio_request(GPIO_FN_LCDC0_SELECT,	NULL);
-	gpio_request(GPIO_FN_LCD0_D0,		NULL);
-	gpio_request(GPIO_FN_LCD0_D1,		NULL);
-	gpio_request(GPIO_FN_LCD0_D2,		NULL);
-	gpio_request(GPIO_FN_LCD0_D3,		NULL);
-	gpio_request(GPIO_FN_LCD0_D4,		NULL);
-	gpio_request(GPIO_FN_LCD0_D5,		NULL);
-	gpio_request(GPIO_FN_LCD0_D6,		NULL);
-	gpio_request(GPIO_FN_LCD0_D7,		NULL);
-	gpio_request(GPIO_FN_LCD0_D8,		NULL);
-	gpio_request(GPIO_FN_LCD0_D9,		NULL);
-	gpio_request(GPIO_FN_LCD0_D10,		NULL);
-	gpio_request(GPIO_FN_LCD0_D11,		NULL);
-	gpio_request(GPIO_FN_LCD0_D12,		NULL);
-	gpio_request(GPIO_FN_LCD0_D13,		NULL);
-	gpio_request(GPIO_FN_LCD0_D14,		NULL);
-	gpio_request(GPIO_FN_LCD0_D15,		NULL);
-	gpio_request(GPIO_FN_LCD0_D16,		NULL);
-	gpio_request(GPIO_FN_LCD0_D17,		NULL);
-	gpio_request(GPIO_FN_LCD0_D18_PORT40,	NULL);
-	gpio_request(GPIO_FN_LCD0_D19_PORT4,	NULL);
-	gpio_request(GPIO_FN_LCD0_D20_PORT3,	NULL);
-	gpio_request(GPIO_FN_LCD0_D21_PORT2,	NULL);
-	gpio_request(GPIO_FN_LCD0_D22_PORT0,	NULL);
-	gpio_request(GPIO_FN_LCD0_D23_PORT1,	NULL);
-	gpio_request(GPIO_FN_LCD0_DCK,		NULL);
-	gpio_request(GPIO_FN_LCD0_VSYN,		NULL);
-	gpio_request(GPIO_FN_LCD0_HSYN,		NULL);
-	gpio_request(GPIO_FN_LCD0_DISP,		NULL);
-	gpio_request(GPIO_FN_LCD0_LCLK_PORT165,	NULL);
-
-	gpio_request(GPIO_PORT61, NULL); /* LCDDON */
-	gpio_direction_output(GPIO_PORT61, 1);
-
-	gpio_request(GPIO_PORT202, NULL); /* LCD0_LED_CONT */
-	gpio_direction_output(GPIO_PORT202, 0);
+	gpio_request_one(61, GPIOF_OUT_INIT_HIGH, NULL); /* LCDDON */
+	gpio_request_one(202, GPIOF_OUT_INIT_LOW, NULL); /* LCD0_LED_CONT */
 
 	/* Touchscreen */
-	gpio_request(GPIO_FN_IRQ10,	NULL); /* TP_INT */
-	gpio_request(GPIO_PORT166,	NULL); /* TP_RST_B */
-	gpio_direction_output(GPIO_PORT166, 1);
+	gpio_request_one(166, GPIOF_OUT_INIT_HIGH, NULL); /* TP_RST_B */
 
 	/* GETHER */
-	gpio_request(GPIO_FN_ET_CRS,		NULL);
-	gpio_request(GPIO_FN_ET_MDC,		NULL);
-	gpio_request(GPIO_FN_ET_MDIO,		NULL);
-	gpio_request(GPIO_FN_ET_TX_ER,		NULL);
-	gpio_request(GPIO_FN_ET_RX_ER,		NULL);
-	gpio_request(GPIO_FN_ET_ERXD0,		NULL);
-	gpio_request(GPIO_FN_ET_ERXD1,		NULL);
-	gpio_request(GPIO_FN_ET_ERXD2,		NULL);
-	gpio_request(GPIO_FN_ET_ERXD3,		NULL);
-	gpio_request(GPIO_FN_ET_TX_CLK,		NULL);
-	gpio_request(GPIO_FN_ET_TX_EN,		NULL);
-	gpio_request(GPIO_FN_ET_ETXD0,		NULL);
-	gpio_request(GPIO_FN_ET_ETXD1,		NULL);
-	gpio_request(GPIO_FN_ET_ETXD2,		NULL);
-	gpio_request(GPIO_FN_ET_ETXD3,		NULL);
-	gpio_request(GPIO_FN_ET_PHY_INT,	NULL);
-	gpio_request(GPIO_FN_ET_COL,		NULL);
-	gpio_request(GPIO_FN_ET_RX_DV,		NULL);
-	gpio_request(GPIO_FN_ET_RX_CLK,		NULL);
-
-	gpio_request(GPIO_PORT18, NULL); /* PHY_RST */
-	gpio_direction_output(GPIO_PORT18, 1);
+	gpio_request_one(18, GPIOF_OUT_INIT_HIGH, NULL); /* PHY_RST */
 
 	/* USB */
-	gpio_request(GPIO_PORT159, NULL); /* USB_DEVICE_MODE */
-	gpio_direction_input(GPIO_PORT159);
+	gpio_request_one(159, GPIOF_IN, NULL); /* USB_DEVICE_MODE */
 
-	if (gpio_get_value(GPIO_PORT159)) {
+	if (gpio_get_value(159)) {
 		/* USB Host */
 	} else {
 		/* USB Func */
-		gpio_request(GPIO_FN_VBUS, NULL);
+		/*
+		 * The USBHS interrupt handlers needs to read the IRQ pin value
+		 * (HI/LOW) to diffentiate USB connection and disconnection
+		 * events (usbhsf_get_vbus()). We thus need to select both the
+		 * intc_irq7_1 pin group and GPIO 209 here.
+		 */
+		gpio_request_one(209, GPIOF_IN, NULL);
+
 		platform_device_register(&usbhsf_device);
+		usb = &usbhsf_device;
 	}
 
-	/* SDHI0 */
-	gpio_request(GPIO_FN_SDHI0_CMD, NULL);
-	gpio_request(GPIO_FN_SDHI0_CLK, NULL);
-	gpio_request(GPIO_FN_SDHI0_D0, NULL);
-	gpio_request(GPIO_FN_SDHI0_D1, NULL);
-	gpio_request(GPIO_FN_SDHI0_D2, NULL);
-	gpio_request(GPIO_FN_SDHI0_D3, NULL);
-	gpio_request(GPIO_FN_SDHI0_WP, NULL);
+	/* CON1/CON15 Camera */
+	gpio_request_one(173, GPIOF_OUT_INIT_LOW, NULL);  /* STANDBY */
+	gpio_request_one(172, GPIOF_OUT_INIT_HIGH, NULL); /* RST */
+	/* see mt9t111_power() */
+	gpio_request_one(158, GPIOF_OUT_INIT_LOW, NULL);  /* CAM_PON */
 
-	gpio_request(GPIO_PORT17, NULL);	/* SDHI0_18/33_B */
-	gpio_request(GPIO_PORT74, NULL);	/* SDHI0_PON */
-	gpio_request(GPIO_PORT75, NULL);	/* SDSLOT1_PON */
-	gpio_direction_output(GPIO_PORT17, 0);
-	gpio_direction_output(GPIO_PORT74, 1);
-	gpio_direction_output(GPIO_PORT75, 1);
-
-	/* we can use GPIO_FN_IRQ31_PORT167 here for SDHI0 CD irq */
-
-	/*
-	 * MMCIF
-	 *
-	 * Here doesn't care SW1.4 status,
-	 * since CON2 is not mounted.
-	 */
-	gpio_request(GPIO_FN_MMC1_CLK_PORT103,	NULL);
-	gpio_request(GPIO_FN_MMC1_CMD_PORT104,	NULL);
-	gpio_request(GPIO_FN_MMC1_D0_PORT149,	NULL);
-	gpio_request(GPIO_FN_MMC1_D1_PORT148,	NULL);
-	gpio_request(GPIO_FN_MMC1_D2_PORT147,	NULL);
-	gpio_request(GPIO_FN_MMC1_D3_PORT146,	NULL);
-	gpio_request(GPIO_FN_MMC1_D4_PORT145,	NULL);
-	gpio_request(GPIO_FN_MMC1_D5_PORT144,	NULL);
-	gpio_request(GPIO_FN_MMC1_D6_PORT143,	NULL);
-	gpio_request(GPIO_FN_MMC1_D7_PORT142,	NULL);
+	/* FSI-WM8978 */
+	gpio_request(7, NULL);
+	gpio_request(8, NULL);
+	gpio_direction_none(GPIO_PORT7CR); /* FSIAOBT needs no direction */
+	gpio_direction_none(GPIO_PORT8CR); /* FSIAOLR needs no direction */
 
 	/*
 	 * CAUTION
@@ -712,60 +1205,65 @@ static void __init eva_init(void)
 	 * DBGMD/LCDC0/FSIA MUX
 	 * DBGMD_SELECT_B should be set after setting PFC Function.
 	 */
-	gpio_request(GPIO_PORT176, NULL);
-	gpio_direction_output(GPIO_PORT176, 1);
+	gpio_request_one(176, GPIOF_OUT_INIT_HIGH, NULL);
 
 	/*
 	 * We can switch CON8/CON14 by SW1.5,
 	 * but it needs after DBGMD_SELECT_B
 	 */
-	gpio_request(GPIO_PORT6, NULL);
-	gpio_direction_input(GPIO_PORT6);
-	if (gpio_get_value(GPIO_PORT6)) {
+	gpio_request_one(6, GPIOF_IN, NULL);
+	if (gpio_get_value(6)) {
 		/* CON14 enable */
 	} else {
 		/* CON8 (SDHI1) enable */
-		gpio_request(GPIO_FN_SDHI1_CLK,	NULL);
-		gpio_request(GPIO_FN_SDHI1_CMD,	NULL);
-		gpio_request(GPIO_FN_SDHI1_D0,	NULL);
-		gpio_request(GPIO_FN_SDHI1_D1,	NULL);
-		gpio_request(GPIO_FN_SDHI1_D2,	NULL);
-		gpio_request(GPIO_FN_SDHI1_D3,	NULL);
-		gpio_request(GPIO_FN_SDHI1_CD,	NULL);
-		gpio_request(GPIO_FN_SDHI1_WP,	NULL);
+		pinctrl_register_mappings(eva_sdhi1_pinctrl_map,
+					  ARRAY_SIZE(eva_sdhi1_pinctrl_map));
 
-		gpio_request(GPIO_PORT16, NULL); /* SDSLOT2_PON */
-		gpio_direction_output(GPIO_PORT16, 1);
-
+		platform_device_register(&vcc_sdhi1);
 		platform_device_register(&sdhi1_device);
 	}
 
 
 #ifdef CONFIG_CACHE_L2X0
 	/* Early BRESP enable, Shared attribute override enable, 32K*8way */
-	l2x0_init(__io(0xf0002000), 0x40440000, 0x82000fff);
+	l2x0_init(IOMEM(0xf0002000), 0x40440000, 0x82000fff);
 #endif
 
 	i2c_register_board_info(0, i2c0_devices, ARRAY_SIZE(i2c0_devices));
+	i2c_register_board_info(2, i2c2_devices, ARRAY_SIZE(i2c2_devices));
 
 	r8a7740_add_standard_devices();
 
 	platform_add_devices(eva_devices,
 			     ARRAY_SIZE(eva_devices));
+
+	rmobile_add_device_to_domain("A4LC", &lcdc0_device);
+	rmobile_add_device_to_domain("A4LC", &hdmi_lcdc_device);
+	if (usb)
+		rmobile_add_device_to_domain("A3SP", usb);
+
+	r8a7740_pm_init();
 }
 
 static void __init eva_earlytimer_init(void)
 {
 	r8a7740_clock_init(MD_CK0 | MD_CK2);
 	shmobile_earlytimer_init();
+
+	/* the rate of extal1 clock must be set before late_time_init */
+	eva_clock_init();
 }
 
 static void __init eva_add_early_devices(void)
 {
 	r8a7740_add_early_devices();
+}
 
-	/* override timer setup with board-specific code */
-	shmobile_timer.init = eva_earlytimer_init;
+#define RESCNT2 IOMEM(0xe6188020)
+static void eva_restart(enum reboot_mode mode, const char *cmd)
+{
+	/* Do soft power on reset */
+	writel((1 << 31), RESCNT2);
 }
 
 static const char *eva_boards_compat_dt[] __initdata = {
@@ -777,9 +1275,9 @@ DT_MACHINE_START(ARMADILLO800EVA_DT, "armadillo800eva")
 	.map_io		= r8a7740_map_io,
 	.init_early	= eva_add_early_devices,
 	.init_irq	= r8a7740_init_irq,
-	.handle_irq	= shmobile_handle_irq_intc,
 	.init_machine	= eva_init,
 	.init_late	= shmobile_init_late,
-	.timer		= &shmobile_timer,
+	.init_time	= eva_earlytimer_init,
 	.dt_compat	= eva_boards_compat_dt,
+	.restart	= eva_restart,
 MACHINE_END

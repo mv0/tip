@@ -47,10 +47,11 @@ EXPORT_SYMBOL_GPL(btmrvl_interrupt);
 bool btmrvl_check_evtpkt(struct btmrvl_private *priv, struct sk_buff *skb)
 {
 	struct hci_event_hdr *hdr = (void *) skb->data;
-	struct hci_ev_cmd_complete *ec;
-	u16 opcode, ocf, ogf;
 
 	if (hdr->evt == HCI_EV_CMD_COMPLETE) {
+		struct hci_ev_cmd_complete *ec;
+		u16 opcode, ocf, ogf;
+
 		ec = (void *) (skb->data + HCI_EVENT_HDR_SIZE);
 		opcode = __le16_to_cpu(ec->opcode);
 		ocf = hci_opcode_ocf(opcode);
@@ -64,7 +65,8 @@ bool btmrvl_check_evtpkt(struct btmrvl_private *priv, struct sk_buff *skb)
 		}
 
 		if (ogf == OGF) {
-			BT_DBG("vendor event skipped: ogf 0x%4.4x", ogf);
+			BT_DBG("vendor event skipped: ogf 0x%4.4x ocf 0x%4.4x",
+			       ogf, ocf);
 			kfree_skb(skb);
 			return false;
 		}
@@ -496,6 +498,10 @@ static int btmrvl_service_main_thread(void *data)
 		add_wait_queue(&thread->wait_q, &wait);
 
 		set_current_state(TASK_INTERRUPTIBLE);
+		if (kthread_should_stop()) {
+			BT_DBG("main_thread: break from main thread");
+			break;
+		}
 
 		if (adapter->wakeup_tries ||
 				((!adapter->int_count) &&
@@ -510,11 +516,6 @@ static int btmrvl_service_main_thread(void *data)
 		remove_wait_queue(&thread->wait_q, &wait);
 
 		BT_DBG("main_thread woke up");
-
-		if (kthread_should_stop()) {
-			BT_DBG("main_thread: break from main thread");
-			break;
-		}
 
 		spin_lock_irqsave(&priv->driver_lock, flags);
 		if (adapter->int_count) {

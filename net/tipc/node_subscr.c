@@ -42,7 +42,7 @@
  * tipc_nodesub_subscribe - create "node down" subscription for specified node
  */
 void tipc_nodesub_subscribe(struct tipc_node_subscr *node_sub, u32 addr,
-		       void *usr_handle, net_ev_handler handle_down)
+			    void *usr_handle, net_ev_handler handle_down)
 {
 	if (in_own_node(addr)) {
 		node_sub->node = NULL;
@@ -51,7 +51,8 @@ void tipc_nodesub_subscribe(struct tipc_node_subscr *node_sub, u32 addr,
 
 	node_sub->node = tipc_node_find(addr);
 	if (!node_sub->node) {
-		warn("Node subscription rejected, unknown node 0x%x\n", addr);
+		pr_warn("Node subscription rejected, unknown node 0x%x\n",
+			addr);
 		return;
 	}
 	node_sub->handle_node_down = handle_down;

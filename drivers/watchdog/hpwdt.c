@@ -39,7 +39,7 @@
 #endif /* CONFIG_HPWDT_NMI_DECODING */
 #include <asm/nmi.h>
 
-#define HPWDT_VERSION			"1.3.0"
+#define HPWDT_VERSION			"1.3.2"
 #define SECS_TO_TICKS(secs)		((secs) * 1000 / 128)
 #define TICKS_TO_SECS(ticks)		((ticks) * 128 / 1000)
 #define HPWDT_MAX_TIMER			TICKS_TO_SECS(65535)
@@ -148,6 +148,7 @@ struct cmn_registers {
 static unsigned int hpwdt_nmi_decoding;
 static unsigned int allow_kdump = 1;
 static unsigned int is_icru;
+static unsigned int is_uefi;
 static DEFINE_SPINLOCK(rom_lock);
 static void *cru_rom_addr;
 static struct cmn_registers cmn_regs;
@@ -212,7 +213,7 @@ asm(".text                          \n\t"
  *	0        :  SUCCESS
  *	<0       :  FAILURE
  */
-static int __devinit cru_detect(unsigned long map_entry,
+static int cru_detect(unsigned long map_entry,
 	unsigned long map_offset)
 {
 	void *bios32_map;
@@ -268,7 +269,7 @@ static int __devinit cru_detect(unsigned long map_entry,
 /*
  *	bios_checksum
  */
-static int __devinit bios_checksum(const char __iomem *ptr, int len)
+static int bios_checksum(const char __iomem *ptr, int len)
 {
 	char sum = 0;
 	int i;
@@ -293,7 +294,7 @@ static int __devinit bios_checksum(const char __iomem *ptr, int len)
  *	0        :  SUCCESS
  *	<0       :  FAILURE
  */
-static int __devinit bios32_present(const char __iomem *p)
+static int bios32_present(const char __iomem *p)
 {
 	struct bios32_service_dir *bios_32_ptr;
 	int length;
@@ -323,7 +324,7 @@ static int __devinit bios32_present(const char __iomem *p)
 	return -ENODEV;
 }
 
-static int __devinit detect_cru_service(void)
+static int detect_cru_service(void)
 {
 	char __iomem *p, *q;
 	int rc = -1;
@@ -395,7 +396,7 @@ asm(".text                      \n\t"
  *	This function checks whether or not a SMBIOS/DMI record is
  *	the 64bit CRU info or not
  */
-static void __devinit dmi_find_cru(const struct dmi_header *dm, void *dummy)
+static void dmi_find_cru(const struct dmi_header *dm, void *dummy)
 {
 	struct smbios_cru64_info *smbios_cru64_ptr;
 	unsigned long cru_physical_address;
@@ -414,7 +415,7 @@ static void __devinit dmi_find_cru(const struct dmi_header *dm, void *dummy)
 	}
 }
 
-static int __devinit detect_cru_service(void)
+static int detect_cru_service(void)
 {
 	cru_rom_addr = NULL;
 
@@ -484,7 +485,7 @@ static int hpwdt_pretimeout(unsigned int ulReason, struct pt_regs *regs)
 		goto out;
 
 	spin_lock_irqsave(&rom_lock, rom_pl);
-	if (!die_nmi_called && !is_icru)
+	if (!die_nmi_called && !is_icru && !is_uefi)
 		asminline_call(&cmn_regs, cru_rom_addr);
 	die_nmi_called = 1;
 	spin_unlock_irqrestore(&rom_lock, rom_pl);
@@ -492,7 +493,7 @@ static int hpwdt_pretimeout(unsigned int ulReason, struct pt_regs *regs)
 	if (allow_kdump)
 		hpwdt_stop();
 
-	if (!is_icru) {
+	if (!is_icru && !is_uefi) {
 		if (cmn_regs.u1.ral == 0) {
 			panic("An NMI occurred, "
 				"but unable to determine source.\n");
@@ -647,7 +648,7 @@ static struct miscdevice hpwdt_miscdev = {
 
 #ifdef CONFIG_HPWDT_NMI_DECODING
 #ifdef CONFIG_X86_LOCAL_APIC
-static void __devinit hpwdt_check_nmi_decoding(struct pci_dev *dev)
+static void hpwdt_check_nmi_decoding(struct pci_dev *dev)
 {
 	/*
 	 * If nmi_watchdog is turned off then we can turn on
@@ -656,7 +657,7 @@ static void __devinit hpwdt_check_nmi_decoding(struct pci_dev *dev)
 	hpwdt_nmi_decoding = 1;
 }
 #else
-static void __devinit hpwdt_check_nmi_decoding(struct pci_dev *dev)
+static void hpwdt_check_nmi_decoding(struct pci_dev *dev)
 {
 	dev_warn(&dev->dev, "NMI decoding is disabled. "
 		"Your kernel does not support a NMI Watchdog.\n");
@@ -671,7 +672,7 @@ static void __devinit hpwdt_check_nmi_decoding(struct pci_dev *dev)
  *	This check is independent of architecture and needs to be made for
  *	any ProLiant system.
  */
-static void __devinit dmi_find_icru(const struct dmi_header *dm, void *dummy)
+static void dmi_find_icru(const struct dmi_header *dm, void *dummy)
 {
 	struct smbios_proliant_info *smbios_proliant_ptr;
 
@@ -679,10 +680,12 @@ static void __devinit dmi_find_icru(const struct dmi_header *dm, void *dummy)
 		smbios_proliant_ptr = (struct smbios_proliant_info *) dm;
 		if (smbios_proliant_ptr->misc_features & 0x01)
 			is_icru = 1;
+		if (smbios_proliant_ptr->misc_features & 0x408)
+			is_uefi = 1;
 	}
 }
 
-static int __devinit hpwdt_init_nmi_decoding(struct pci_dev *dev)
+static int hpwdt_init_nmi_decoding(struct pci_dev *dev)
 {
 	int retval;
 
@@ -697,7 +700,7 @@ static int __devinit hpwdt_init_nmi_decoding(struct pci_dev *dev)
 	 * the old cru detect code.
 	 */
 	dmi_walk(dmi_find_icru, NULL);
-	if (!is_icru) {
+	if (!is_icru && !is_uefi) {
 
 		/*
 		* We need to map the ROM to get the CRU service.
@@ -762,11 +765,11 @@ static void hpwdt_exit_nmi_decoding(void)
 		iounmap(cru_rom_addr);
 }
 #else /* !CONFIG_HPWDT_NMI_DECODING */
-static void __devinit hpwdt_check_nmi_decoding(struct pci_dev *dev)
+static void hpwdt_check_nmi_decoding(struct pci_dev *dev)
 {
 }
 
-static int __devinit hpwdt_init_nmi_decoding(struct pci_dev *dev)
+static int hpwdt_init_nmi_decoding(struct pci_dev *dev)
 {
 	return 0;
 }
@@ -776,7 +779,7 @@ static void hpwdt_exit_nmi_decoding(void)
 }
 #endif /* CONFIG_HPWDT_NMI_DECODING */
 
-static int __devinit hpwdt_init_one(struct pci_dev *dev,
+static int hpwdt_init_one(struct pci_dev *dev,
 					const struct pci_device_id *ent)
 {
 	int retval;
@@ -814,6 +817,9 @@ static int __devinit hpwdt_init_one(struct pci_dev *dev,
 	hpwdt_timer_reg = pci_mem_addr + 0x70;
 	hpwdt_timer_con = pci_mem_addr + 0x72;
 
+	/* Make sure that timer is disabled until /dev/watchdog is opened */
+	hpwdt_stop();
+
 	/* Make sure that we have a valid soft_margin */
 	if (hpwdt_change_timer(soft_margin))
 		hpwdt_change_timer(DEFAULT_MARGIN);
@@ -845,7 +851,7 @@ error_pci_iomap:
 	return retval;
 }
 
-static void __devexit hpwdt_exit(struct pci_dev *dev)
+static void hpwdt_exit(struct pci_dev *dev)
 {
 	if (!nowayout)
 		hpwdt_stop();
@@ -860,7 +866,7 @@ static struct pci_driver hpwdt_driver = {
 	.name = "hpwdt",
 	.id_table = hpwdt_devices,
 	.probe = hpwdt_init_one,
-	.remove = __devexit_p(hpwdt_exit),
+	.remove = hpwdt_exit,
 };
 
 MODULE_AUTHOR("Tom Mingarelli");

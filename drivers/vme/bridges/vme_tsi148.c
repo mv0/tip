@@ -35,10 +35,8 @@
 #include "../vme_bridge.h"
 #include "vme_tsi148.h"
 
-static int __init tsi148_init(void);
 static int tsi148_probe(struct pci_dev *, const struct pci_device_id *);
 static void tsi148_remove(struct pci_dev *);
-static void __exit tsi148_exit(void);
 
 
 /* Module parameter */
@@ -171,7 +169,7 @@ static u32 tsi148_VERR_irqhandler(struct vme_bridge *tsi148_bridge)
 	unsigned int error_addr_high, error_addr_low;
 	unsigned long long error_addr;
 	u32 error_attrib;
-	struct vme_bus_error *error;
+	struct vme_bus_error *error = NULL;
 	struct tsi148_driver *bridge;
 
 	bridge = tsi148_bridge->driver_priv;
@@ -188,16 +186,22 @@ static u32 tsi148_VERR_irqhandler(struct vme_bridge *tsi148_bridge)
 			"Occurred\n");
 	}
 
-	error = kmalloc(sizeof(struct vme_bus_error), GFP_ATOMIC);
-	if (error) {
-		error->address = error_addr;
-		error->attributes = error_attrib;
-		list_add_tail(&error->list, &tsi148_bridge->vme_errors);
-	} else {
-		dev_err(tsi148_bridge->parent, "Unable to alloc memory for "
-			"VMEbus Error reporting\n");
-		dev_err(tsi148_bridge->parent, "VME Bus Error at address: "
-			"0x%llx, attributes: %08x\n", error_addr, error_attrib);
+	if (err_chk) {
+		error = kmalloc(sizeof(struct vme_bus_error), GFP_ATOMIC);
+		if (error) {
+			error->address = error_addr;
+			error->attributes = error_attrib;
+			list_add_tail(&error->list, &tsi148_bridge->vme_errors);
+		} else {
+			dev_err(tsi148_bridge->parent,
+				"Unable to alloc memory for VMEbus Error reporting\n");
+		}
+	}
+
+	if (!error) {
+		dev_err(tsi148_bridge->parent,
+			"VME Bus Error at address: 0x%llx, attributes: %08x\n",
+			error_addr, error_attrib);
 	}
 
 	/* Clear Status */
@@ -1263,12 +1267,55 @@ static ssize_t tsi148_master_read(struct vme_master_resource *image, void *buf,
 	u32 aspace, cycle, dwidth;
 	struct vme_bus_error *vme_err = NULL;
 	struct vme_bridge *tsi148_bridge;
+	void *addr = image->kern_base + offset;
+	unsigned int done = 0;
+	unsigned int count32;
 
 	tsi148_bridge = image->parent;
 
 	spin_lock(&image->lock);
 
-	memcpy_fromio(buf, image->kern_base + offset, (unsigned int)count);
+	/* The following code handles VME address alignment. We cannot use
+	 * memcpy_xxx directly here because it may cut small data transfers in
+	 * to 8-bit cycles, thus making D16 cycle impossible.
+	 * On the other hand, the bridge itself assures that the maximum data
+	 * cycle configured for the transfer is used and splits it
+	 * automatically for non-aligned addresses, so we don't want the
+	 * overhead of needlessly forcing small transfers for the entire cycle.
+	 */
+	if ((uintptr_t)addr & 0x1) {
+		*(u8 *)buf = ioread8(addr);
+		done += 1;
+		if (done == count)
+			goto out;
+	}
+	if ((uintptr_t)addr & 0x2) {
+		if ((count - done) < 2) {
+			*(u8 *)(buf + done) = ioread8(addr + done);
+			done += 1;
+			goto out;
+		} else {
+			*(u16 *)(buf + done) = ioread16(addr + done);
+			done += 2;
+		}
+	}
+
+	count32 = (count - done) & ~0x3;
+	if (count32 > 0) {
+		memcpy_fromio(buf + done, addr + done, count32);
+		done += count32;
+	}
+
+	if ((count - done) & 0x2) {
+		*(u16 *)(buf + done) = ioread16(addr + done);
+		done += 2;
+	}
+	if ((count - done) & 0x1) {
+		*(u8 *)(buf + done) = ioread8(addr + done);
+		done += 1;
+	}
+
+out:
 	retval = count;
 
 	if (!err_chk)
@@ -1301,6 +1348,9 @@ static ssize_t tsi148_master_write(struct vme_master_resource *image, void *buf,
 	int retval = 0, enabled;
 	unsigned long long vme_base, size;
 	u32 aspace, cycle, dwidth;
+	void *addr = image->kern_base + offset;
+	unsigned int done = 0;
+	unsigned int count32;
 
 	struct vme_bus_error *vme_err = NULL;
 	struct vme_bridge *tsi148_bridge;
@@ -1312,7 +1362,42 @@ static ssize_t tsi148_master_write(struct vme_master_resource *image, void *buf,
 
 	spin_lock(&image->lock);
 
-	memcpy_toio(image->kern_base + offset, buf, (unsigned int)count);
+	/* Here we apply for the same strategy we do in master_read
+	 * function in order to assure D16 cycle when required.
+	 */
+	if ((uintptr_t)addr & 0x1) {
+		iowrite8(*(u8 *)buf, addr);
+		done += 1;
+		if (done == count)
+			goto out;
+	}
+	if ((uintptr_t)addr & 0x2) {
+		if ((count - done) < 2) {
+			iowrite8(*(u8 *)(buf + done), addr + done);
+			done += 1;
+			goto out;
+		} else {
+			iowrite16(*(u16 *)(buf + done), addr + done);
+			done += 2;
+		}
+	}
+
+	count32 = (count - done) & ~0x3;
+	if (count32 > 0) {
+		memcpy_toio(addr + done, buf + done, count32);
+		done += count32;
+	}
+
+	if ((count - done) & 0x2) {
+		iowrite16(*(u16 *)(buf + done), addr + done);
+		done += 2;
+	}
+	if ((count - done) & 0x1) {
+		iowrite8(*(u8 *)(buf + done), addr + done);
+		done += 1;
+	}
+
+out:
 	retval = count;
 
 	/*
@@ -2163,11 +2248,6 @@ static void tsi148_free_consistent(struct device *parent, size_t size,
 	pci_free_consistent(pdev, size, vaddr, dma);
 }
 
-static int __init tsi148_init(void)
-{
-	return pci_register_driver(&tsi148_driver);
-}
-
 /*
  * Configure CR/CSR space
  *
@@ -2220,12 +2300,13 @@ static int tsi148_crcsr_init(struct vme_bridge *tsi148_bridge,
 	dev_info(tsi148_bridge->parent, "CR/CSR Offset: %d\n", cbar);
 
 	crat = ioread32be(bridge->base + TSI148_LCSR_CRAT);
-	if (crat & TSI148_LCSR_CRAT_EN) {
+	if (crat & TSI148_LCSR_CRAT_EN)
+		dev_info(tsi148_bridge->parent, "CR/CSR already enabled\n");
+	else {
 		dev_info(tsi148_bridge->parent, "Enabling CR/CSR space\n");
 		iowrite32be(crat | TSI148_LCSR_CRAT_EN,
 			bridge->base + TSI148_LCSR_CRAT);
-	} else
-		dev_info(tsi148_bridge->parent, "CR/CSR already enabled\n");
+	}
 
 	/* If we want flushed, error-checked writes, set up a window
 	 * over the CR/CSR registers. We read from here to safely flush
@@ -2269,7 +2350,7 @@ static int tsi148_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int retval, i, master_num;
 	u32 data;
-	struct list_head *pos = NULL;
+	struct list_head *pos = NULL, *n;
 	struct vme_bridge *tsi148_bridge;
 	struct tsi148_driver *tsi148_device;
 	struct vme_master_resource *master_image;
@@ -2367,13 +2448,6 @@ static int tsi148_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		spin_lock_init(&tsi148_device->flush_image->lock);
 		tsi148_device->flush_image->locked = 1;
 		tsi148_device->flush_image->number = master_num;
-		tsi148_device->flush_image->address_attr = VME_A16 | VME_A24 |
-			VME_A32 | VME_A64;
-		tsi148_device->flush_image->cycle_attr = VME_SCT | VME_BLT |
-			VME_MBLT | VME_2eVME | VME_2eSST | VME_2eSSTB |
-			VME_2eSST160 | VME_2eSST267 | VME_2eSST320 | VME_SUPER |
-			VME_USER | VME_PROG | VME_DATA;
-		tsi148_device->flush_image->width_attr = VME_D16 | VME_D32;
 		memset(&tsi148_device->flush_image->bus_resource, 0,
 			sizeof(struct resource));
 		tsi148_device->flush_image->kern_base  = NULL;
@@ -2508,7 +2582,8 @@ static int tsi148_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	dev_info(&pdev->dev, "VME Write and flush and error check is %s\n",
 		err_chk ? "enabled" : "disabled");
 
-	if (tsi148_crcsr_init(tsi148_bridge, pdev)) {
+	retval = tsi148_crcsr_init(tsi148_bridge, pdev);
+	if (retval) {
 		dev_err(&pdev->dev, "CR/CSR configuration failed.\n");
 		goto err_crcsr;
 	}
@@ -2534,28 +2609,28 @@ err_reg:
 err_crcsr:
 err_lm:
 	/* resources are stored in link list */
-	list_for_each(pos, &tsi148_bridge->lm_resources) {
+	list_for_each_safe(pos, n, &tsi148_bridge->lm_resources) {
 		lm = list_entry(pos, struct vme_lm_resource, list);
 		list_del(pos);
 		kfree(lm);
 	}
 err_dma:
 	/* resources are stored in link list */
-	list_for_each(pos, &tsi148_bridge->dma_resources) {
+	list_for_each_safe(pos, n, &tsi148_bridge->dma_resources) {
 		dma_ctrlr = list_entry(pos, struct vme_dma_resource, list);
 		list_del(pos);
 		kfree(dma_ctrlr);
 	}
 err_slave:
 	/* resources are stored in link list */
-	list_for_each(pos, &tsi148_bridge->slave_resources) {
+	list_for_each_safe(pos, n, &tsi148_bridge->slave_resources) {
 		slave_image = list_entry(pos, struct vme_slave_resource, list);
 		list_del(pos);
 		kfree(slave_image);
 	}
 err_master:
 	/* resources are stored in link list */
-	list_for_each(pos, &tsi148_bridge->master_resources) {
+	list_for_each_safe(pos, n, &tsi148_bridge->master_resources) {
 		master_image = list_entry(pos, struct vme_master_resource,
 			list);
 		list_del(pos);
@@ -2673,10 +2748,7 @@ static void tsi148_remove(struct pci_dev *pdev)
 	kfree(tsi148_bridge);
 }
 
-static void __exit tsi148_exit(void)
-{
-	pci_unregister_driver(&tsi148_driver);
-}
+module_pci_driver(tsi148_driver);
 
 MODULE_PARM_DESC(err_chk, "Check for VME errors on reads and writes");
 module_param(err_chk, bool, 0);
@@ -2686,6 +2758,3 @@ module_param(geoid, int, 0);
 
 MODULE_DESCRIPTION("VME driver for the Tundra Tempe VME bridge");
 MODULE_LICENSE("GPL");
-
-module_init(tsi148_init);
-module_exit(tsi148_exit);

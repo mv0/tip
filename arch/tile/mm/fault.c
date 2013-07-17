@@ -70,9 +70,10 @@ static noinline void force_sig_info_fault(const char *type, int si_signo,
  * Synthesize the fault a PL0 process would get by doing a word-load of
  * an unaligned address or a high kernel address.
  */
-SYSCALL_DEFINE2(cmpxchg_badaddr, unsigned long, address,
-		struct pt_regs *, regs)
+SYSCALL_DEFINE1(cmpxchg_badaddr, unsigned long, address)
 {
+	struct pt_regs *regs = current_pt_regs();
+
 	if (address >= PAGE_OFFSET)
 		force_sig_info_fault("atomic segfault", SIGSEGV, SEGV_MAPERR,
 				     address, INT_DTLB_MISS, current, regs);
@@ -454,6 +455,7 @@ good_area:
 			tsk->min_flt++;
 		if (fault & VM_FAULT_RETRY) {
 			flags &= ~FAULT_FLAG_ALLOW_RETRY;
+			flags |= FAULT_FLAG_TRIED;
 
 			 /*
 			  * No need to up_read(&mm->mmap_sem) as we would
@@ -571,10 +573,10 @@ out_of_memory:
 		down_read(&mm->mmap_sem);
 		goto survive;
 	}
-	pr_alert("VM: killing process %s\n", tsk->comm);
-	if (!is_kernel_mode)
-		do_group_exit(SIGKILL);
-	goto no_context;
+	if (is_kernel_mode)
+		goto no_context;
+	pagefault_out_of_memory();
+	return 0;
 
 do_sigbus:
 	up_read(&mm->mmap_sem);

@@ -26,7 +26,6 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <linux/pinctrl/consumer.h>
 
 #include "imx-audmux.h"
 
@@ -73,9 +72,6 @@ static ssize_t audmux_read_file(struct file *file, char __user *user_buf,
 
 	if (!buf)
 		return -ENOMEM;
-
-	if (!audmux_base)
-		return -ENOSYS;
 
 	if (audmux_clk)
 		clk_prepare_enable(audmux_clk);
@@ -156,7 +152,7 @@ static void __init audmux_debugfs_init(void)
 		return;
 	}
 
-	for (i = 0; i < MX31_AUDMUX_PORT6_SSI_PINS_6 + 1; i++) {
+	for (i = 0; i < MX31_AUDMUX_PORT7_SSI_PINS_7 + 1; i++) {
 		snprintf(buf, sizeof(buf), "ssi%d", i);
 		if (!debugfs_create_file(buf, 0444, audmux_debugfs_root,
 					 (void *)i, &audmux_debugfs_fops))
@@ -165,7 +161,7 @@ static void __init audmux_debugfs_init(void)
 	}
 }
 
-static void __devexit audmux_debugfs_remove(void)
+static void audmux_debugfs_remove(void)
 {
 	debugfs_remove_recursive(audmux_debugfs_root);
 }
@@ -179,7 +175,7 @@ static inline void audmux_debugfs_remove(void)
 }
 #endif
 
-enum imx_audmux_type {
+static enum imx_audmux_type {
 	IMX21_AUDMUX,
 	IMX31_AUDMUX,
 } audmux_type;
@@ -247,25 +243,18 @@ int imx_audmux_v2_configure_port(unsigned int port, unsigned int ptcr,
 }
 EXPORT_SYMBOL_GPL(imx_audmux_v2_configure_port);
 
-static int __devinit imx_audmux_probe(struct platform_device *pdev)
+static int imx_audmux_probe(struct platform_device *pdev)
 {
 	struct resource *res;
-	struct pinctrl *pinctrl;
 	const struct of_device_id *of_id =
 			of_match_device(imx_audmux_dt_ids, &pdev->dev);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	audmux_base = devm_request_and_ioremap(&pdev->dev, res);
-	if (!audmux_base)
-		return -EADDRNOTAVAIL;
+	audmux_base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(audmux_base))
+		return PTR_ERR(audmux_base);
 
-	pinctrl = devm_pinctrl_get_select_default(&pdev->dev);
-	if (IS_ERR(pinctrl)) {
-		dev_err(&pdev->dev, "setup pinctrl failed!");
-		return PTR_ERR(pinctrl);
-	}
-
-	audmux_clk = clk_get(&pdev->dev, "audmux");
+	audmux_clk = devm_clk_get(&pdev->dev, "audmux");
 	if (IS_ERR(audmux_clk)) {
 		dev_dbg(&pdev->dev, "cannot get clock: %ld\n",
 				PTR_ERR(audmux_clk));
@@ -281,18 +270,17 @@ static int __devinit imx_audmux_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int __devexit imx_audmux_remove(struct platform_device *pdev)
+static int imx_audmux_remove(struct platform_device *pdev)
 {
 	if (audmux_type == IMX31_AUDMUX)
 		audmux_debugfs_remove();
-	clk_put(audmux_clk);
 
 	return 0;
 }
 
 static struct platform_driver imx_audmux_driver = {
 	.probe		= imx_audmux_probe,
-	.remove		= __devexit_p(imx_audmux_remove),
+	.remove		= imx_audmux_remove,
 	.id_table	= imx_audmux_ids,
 	.driver	= {
 		.name	= DRIVER_NAME,

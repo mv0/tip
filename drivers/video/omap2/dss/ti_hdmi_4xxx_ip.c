@@ -28,7 +28,6 @@
 #include <linux/delay.h>
 #include <linux/string.h>
 #include <linux/seq_file.h>
-#include <linux/gpio.h>
 #if defined(CONFIG_OMAP4_DSS_HDMI_AUDIO)
 #include <sound/asound.h>
 #include <sound/asoundef.h>
@@ -37,6 +36,9 @@
 #include "ti_hdmi_4xxx_ip.h"
 #include "dss.h"
 #include "dss_features.h"
+
+#define HDMI_IRQ_LINK_CONNECT		(1 << 25)
+#define HDMI_IRQ_LINK_DISCONNECT	(1 << 26)
 
 static inline void hdmi_write_reg(void __iomem *base_addr,
 				const u16 idx, u32 val)
@@ -157,6 +159,10 @@ static int hdmi_pll_init(struct hdmi_ip_data *ip_data)
 /* PHY_PWR_CMD */
 static int hdmi_set_phy_pwr(struct hdmi_ip_data *ip_data, enum hdmi_phy_pwr val)
 {
+	/* Return if already the state */
+	if (REG_GET(hdmi_wp_base(ip_data), HDMI_WP_PWR_CTRL, 5, 4) == val)
+		return 0;
+
 	/* Command for power control of HDMI PHY */
 	REG_FLD_MOD(hdmi_wp_base(ip_data), HDMI_WP_PWR_CTRL, val, 7, 6);
 
@@ -229,45 +235,38 @@ void ti_hdmi_4xxx_pll_disable(struct hdmi_ip_data *ip_data)
 	hdmi_set_pll_pwr(ip_data, HDMI_PLLPWRCMD_ALLOFF);
 }
 
-static int hdmi_check_hpd_state(struct hdmi_ip_data *ip_data)
-{
-	unsigned long flags;
-	bool hpd;
-	int r;
-	/* this should be in ti_hdmi_4xxx_ip private data */
-	static DEFINE_SPINLOCK(phy_tx_lock);
-
-	spin_lock_irqsave(&phy_tx_lock, flags);
-
-	hpd = gpio_get_value(ip_data->hpd_gpio);
-
-	if (hpd == ip_data->phy_tx_enabled) {
-		spin_unlock_irqrestore(&phy_tx_lock, flags);
-		return 0;
-	}
-
-	if (hpd)
-		r = hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_TXON);
-	else
-		r = hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_LDOON);
-
-	if (r) {
-		DSSERR("Failed to %s PHY TX power\n",
-				hpd ? "enable" : "disable");
-		goto err;
-	}
-
-	ip_data->phy_tx_enabled = hpd;
-err:
-	spin_unlock_irqrestore(&phy_tx_lock, flags);
-	return r;
-}
-
-static irqreturn_t hpd_irq_handler(int irq, void *data)
+static irqreturn_t hdmi_irq_handler(int irq, void *data)
 {
 	struct hdmi_ip_data *ip_data = data;
+	void __iomem *wp_base = hdmi_wp_base(ip_data);
+	u32 irqstatus;
 
-	hdmi_check_hpd_state(ip_data);
+	irqstatus = hdmi_read_reg(wp_base, HDMI_WP_IRQSTATUS);
+	hdmi_write_reg(wp_base, HDMI_WP_IRQSTATUS, irqstatus);
+	/* flush posted write */
+	hdmi_read_reg(wp_base, HDMI_WP_IRQSTATUS);
+
+	if ((irqstatus & HDMI_IRQ_LINK_CONNECT) &&
+			irqstatus & HDMI_IRQ_LINK_DISCONNECT) {
+		/*
+		 * If we get both connect and disconnect interrupts at the same
+		 * time, turn off the PHY, clear interrupts, and restart, which
+		 * raises connect interrupt if a cable is connected, or nothing
+		 * if cable is not connected.
+		 */
+		hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_OFF);
+
+		hdmi_write_reg(wp_base, HDMI_WP_IRQSTATUS,
+			HDMI_IRQ_LINK_CONNECT | HDMI_IRQ_LINK_DISCONNECT);
+		/* flush posted write */
+		hdmi_read_reg(wp_base, HDMI_WP_IRQSTATUS);
+
+		hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_LDOON);
+	} else if (irqstatus & HDMI_IRQ_LINK_CONNECT) {
+		hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_TXON);
+	} else if (irqstatus & HDMI_IRQ_LINK_DISCONNECT) {
+		hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_LDOON);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -276,6 +275,12 @@ int ti_hdmi_4xxx_phy_enable(struct hdmi_ip_data *ip_data)
 {
 	u16 r = 0;
 	void __iomem *phy_base = hdmi_phy_base(ip_data);
+
+	hdmi_write_reg(hdmi_wp_base(ip_data), HDMI_WP_IRQENABLE_CLR,
+			0xffffffff);
+
+	hdmi_write_reg(hdmi_wp_base(ip_data), HDMI_WP_IRQSTATUS,
+			HDMI_IRQ_LINK_CONNECT | HDMI_IRQ_LINK_DISCONNECT);
 
 	r = hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_LDOON);
 	if (r)
@@ -302,32 +307,25 @@ int ti_hdmi_4xxx_phy_enable(struct hdmi_ip_data *ip_data)
 	/* Write to phy address 3 to change the polarity control */
 	REG_FLD_MOD(phy_base, HDMI_TXPHY_PAD_CFG_CTRL, 0x1, 27, 27);
 
-	r = request_threaded_irq(gpio_to_irq(ip_data->hpd_gpio),
-				 NULL, hpd_irq_handler,
-				 IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |
-				 IRQF_ONESHOT, "hpd", ip_data);
+	r = request_threaded_irq(ip_data->irq, NULL, hdmi_irq_handler,
+				 IRQF_ONESHOT, "OMAP HDMI", ip_data);
 	if (r) {
-		DSSERR("HPD IRQ request failed\n");
+		DSSERR("HDMI IRQ request failed\n");
 		hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_OFF);
 		return r;
 	}
 
-	r = hdmi_check_hpd_state(ip_data);
-	if (r) {
-		free_irq(gpio_to_irq(ip_data->hpd_gpio), ip_data);
-		hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_OFF);
-		return r;
-	}
+	hdmi_write_reg(hdmi_wp_base(ip_data), HDMI_WP_IRQENABLE_SET,
+			HDMI_IRQ_LINK_CONNECT | HDMI_IRQ_LINK_DISCONNECT);
 
 	return 0;
 }
 
 void ti_hdmi_4xxx_phy_disable(struct hdmi_ip_data *ip_data)
 {
-	free_irq(gpio_to_irq(ip_data->hpd_gpio), ip_data);
+	free_irq(ip_data->irq, ip_data);
 
 	hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_OFF);
-	ip_data->phy_tx_enabled = false;
 }
 
 static int hdmi_core_ddc_init(struct hdmi_ip_data *ip_data)
@@ -480,11 +478,6 @@ int ti_hdmi_4xxx_read_edid(struct hdmi_ip_data *ip_data,
 	}
 
 	return l;
-}
-
-bool ti_hdmi_4xxx_detect(struct hdmi_ip_data *ip_data)
-{
-	return gpio_get_value(ip_data->hpd_gpio);
 }
 
 static void hdmi_core_init(struct hdmi_core_video_config *video_cfg,
@@ -747,11 +740,15 @@ static void hdmi_wp_video_config_format(struct hdmi_ip_data *ip_data,
 static void hdmi_wp_video_config_interface(struct hdmi_ip_data *ip_data)
 {
 	u32 r;
+	bool vsync_pol, hsync_pol;
 	pr_debug("Enter hdmi_wp_video_config_interface\n");
 
+	vsync_pol = ip_data->cfg.timings.vsync_level == OMAPDSS_SIG_ACTIVE_HIGH;
+	hsync_pol = ip_data->cfg.timings.hsync_level == OMAPDSS_SIG_ACTIVE_HIGH;
+
 	r = hdmi_read_reg(hdmi_wp_base(ip_data), HDMI_WP_VIDEO_CFG);
-	r = FLD_MOD(r, ip_data->cfg.timings.vsync_pol, 7, 7);
-	r = FLD_MOD(r, ip_data->cfg.timings.hsync_pol, 6, 6);
+	r = FLD_MOD(r, vsync_pol, 7, 7);
+	r = FLD_MOD(r, hsync_pol, 6, 6);
 	r = FLD_MOD(r, ip_data->cfg.timings.interlace, 3, 3);
 	r = FLD_MOD(r, 1, 1, 0); /* HDMI_TIMING_MASTER_24BIT */
 	hdmi_write_reg(hdmi_wp_base(ip_data), HDMI_WP_VIDEO_CFG, r);
@@ -901,7 +898,7 @@ void ti_hdmi_4xxx_core_dump(struct hdmi_ip_data *ip_data, struct seq_file *s)
 #define DUMPCOREAV(r) seq_printf(s, "%-35s %08x\n", #r,\
 		hdmi_read_reg(hdmi_av_base(ip_data), r))
 #define DUMPCOREAV2(i, r) seq_printf(s, "%s[%d]%*s %08x\n", #r, i, \
-		(i < 10) ? 32 - strlen(#r) : 31 - strlen(#r), " ", \
+		(i < 10) ? 32 - (int)strlen(#r) : 31 - (int)strlen(#r), " ", \
 		hdmi_read_reg(hdmi_av_base(ip_data), CORE_REG(i, r)))
 
 	DUMPCORE(HDMI_CORE_SYS_VND_IDL);
@@ -1419,5 +1416,14 @@ void ti_hdmi_4xxx_audio_stop(struct hdmi_ip_data *ip_data)
 		    HDMI_CORE_AV_AUD_MODE, false, 0, 0);
 	REG_FLD_MOD(hdmi_wp_base(ip_data),
 		    HDMI_WP_AUDIO_CTRL, false, 30, 30);
+}
+
+int ti_hdmi_4xxx_audio_get_dma_port(u32 *offset, u32 *size)
+{
+	if (!offset || !size)
+		return -EINVAL;
+	*offset = HDMI_WP_AUDIO_DATA;
+	*size = 4;
+	return 0;
 }
 #endif

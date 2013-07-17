@@ -107,16 +107,12 @@ extern void s3c_pm_do_restore(struct sleep_save *ptr, int count);
 extern void s3c_pm_do_restore_core(struct sleep_save *ptr, int count);
 
 #ifdef CONFIG_PM
+extern int s3c_irq_wake(struct irq_data *data, unsigned int state);
 extern int s3c_irqext_wake(struct irq_data *data, unsigned int state);
-extern int s3c24xx_irq_suspend(void);
-extern void s3c24xx_irq_resume(void);
 #else
+#define s3c_irq_wake NULL
 #define s3c_irqext_wake NULL
-#define s3c24xx_irq_suspend NULL
-#define s3c24xx_irq_resume  NULL
 #endif
-
-extern struct syscore_ops s3c24xx_irq_syscore_ops;
 
 /* PM debug functions */
 
@@ -170,6 +166,7 @@ extern void s3c_pm_check_store(void);
  */
 extern void s3c_pm_configure_extint(void);
 
+#ifdef CONFIG_GPIO_SAMSUNG
 /**
  * samsung_pm_restore_gpios() - restore the state of the gpios after sleep.
  *
@@ -185,6 +182,10 @@ extern void samsung_pm_restore_gpios(void);
  * Save the GPIO states for resotration on resume. See samsung_pm_restore_gpios().
  */
 extern void samsung_pm_save_gpios(void);
+#else
+static inline void samsung_pm_restore_gpios(void) {}
+static inline void samsung_pm_save_gpios(void) {}
+#endif
 
 extern void s3c_pm_save_core(void);
 extern void s3c_pm_restore_core(void);

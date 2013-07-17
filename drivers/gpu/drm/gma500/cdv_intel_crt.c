@@ -82,7 +82,7 @@ static int cdv_intel_crt_mode_valid(struct drm_connector *connector,
 }
 
 static bool cdv_intel_crt_mode_fixup(struct drm_encoder *encoder,
-				 struct drm_display_mode *mode,
+				 const struct drm_display_mode *mode,
 				 struct drm_display_mode *adjusted_mode)
 {
 	return true;
@@ -276,6 +276,7 @@ void cdv_intel_crt_init(struct drm_device *dev,
 		goto failed_connector;
 
 	connector = &psb_intel_connector->base;
+	connector->polled = DRM_CONNECTOR_POLL_HPD;
 	drm_connector_init(dev, connector,
 		&cdv_intel_crt_connector_funcs, DRM_MODE_CONNECTOR_VGA);
 

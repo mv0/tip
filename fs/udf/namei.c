@@ -251,7 +251,7 @@ out_ok:
 }
 
 static struct dentry *udf_lookup(struct inode *dir, struct dentry *dentry,
-				 struct nameidata *nd)
+				 unsigned int flags)
 {
 	struct inode *inode = NULL;
 	struct fileIdentDesc cfi;
@@ -551,7 +551,7 @@ static int udf_delete_entry(struct inode *inode, struct fileIdentDesc *fi,
 }
 
 static int udf_create(struct inode *dir, struct dentry *dentry, umode_t mode,
-		      struct nameidata *nd)
+		      bool excl)
 {
 	struct udf_fileident_bh fibh;
 	struct inode *inode;
@@ -591,6 +591,29 @@ static int udf_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 	brelse(fibh.sbh);
 	d_instantiate(dentry, inode);
 
+	return 0;
+}
+
+static int udf_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
+{
+	struct inode *inode;
+	struct udf_inode_info *iinfo;
+	int err;
+
+	inode = udf_new_inode(dir, mode, &err);
+	if (!inode)
+		return err;
+
+	iinfo = UDF_I(inode);
+	if (iinfo->i_alloc_type == ICBTAG_FLAG_AD_IN_ICB)
+		inode->i_data.a_ops = &udf_adinicb_aops;
+	else
+		inode->i_data.a_ops = &udf_aops;
+	inode->i_op = &udf_file_inode_operations;
+	inode->i_fop = &udf_file_operations;
+	mark_inode_dirty(inode);
+
+	d_tmpfile(dentry, inode);
 	return 0;
 }
 
@@ -1270,15 +1293,16 @@ static int udf_encode_fh(struct inode *inode, __u32 *fh, int *lenp,
 
 	if (parent && (len < 5)) {
 		*lenp = 5;
-		return 255;
+		return FILEID_INVALID;
 	} else if (len < 3) {
 		*lenp = 3;
-		return 255;
+		return FILEID_INVALID;
 	}
 
 	*lenp = 3;
 	fid->udf.block = location.logicalBlockNum;
 	fid->udf.partref = location.partitionReferenceNum;
+	fid->udf.parent_partref = 0;
 	fid->udf.generation = inode->i_generation;
 
 	if (parent) {
@@ -1310,6 +1334,7 @@ const struct inode_operations udf_dir_inode_operations = {
 	.rmdir				= udf_rmdir,
 	.mknod				= udf_mknod,
 	.rename				= udf_rename,
+	.tmpfile			= udf_tmpfile,
 };
 const struct inode_operations udf_symlink_inode_operations = {
 	.readlink	= generic_readlink,

@@ -12,6 +12,8 @@
 #include <linux/platform_device.h>
 #include <linux/gpio.h>
 #include <linux/irq.h>
+#include <linux/regulator/fixed.h>
+#include <linux/regulator/machine.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/flash.h>
 #include <linux/io.h>
@@ -80,7 +82,7 @@ static struct sh_eth_plat_data sh7757_eth0_pdata = {
 };
 
 static struct platform_device sh7757_eth0_device = {
-	.name		= "sh-eth",
+	.name		= "sh7757-ether",
 	.resource	= sh_eth0_resources,
 	.id		= 0,
 	.num_resources	= ARRAY_SIZE(sh_eth0_resources),
@@ -109,7 +111,7 @@ static struct sh_eth_plat_data sh7757_eth1_pdata = {
 };
 
 static struct platform_device sh7757_eth1_device = {
-	.name		= "sh-eth",
+	.name		= "sh7757-ether",
 	.resource	= sh_eth1_resources,
 	.id		= 1,
 	.num_resources	= ARRAY_SIZE(sh_eth1_resources),
@@ -155,7 +157,7 @@ static struct sh_eth_plat_data sh7757_eth_giga0_pdata = {
 };
 
 static struct platform_device sh7757_eth_giga0_device = {
-	.name		= "sh-eth",
+	.name		= "sh7757-gether",
 	.resource	= sh_eth_giga0_resources,
 	.id		= 2,
 	.num_resources	= ARRAY_SIZE(sh_eth_giga0_resources),
@@ -190,13 +192,22 @@ static struct sh_eth_plat_data sh7757_eth_giga1_pdata = {
 };
 
 static struct platform_device sh7757_eth_giga1_device = {
-	.name		= "sh-eth",
+	.name		= "sh7757-gether",
 	.resource	= sh_eth_giga1_resources,
 	.id		= 3,
 	.num_resources	= ARRAY_SIZE(sh_eth_giga1_resources),
 	.dev		= {
 		.platform_data = &sh7757_eth_giga1_pdata,
 	},
+};
+
+/* Fixed 3.3V regulator to be used by SDHI0, MMCIF */
+static struct regulator_consumer_supply fixed3v3_power_consumers[] =
+{
+	REGULATOR_SUPPLY("vmmc", "sh_mobile_sdhi.0"),
+	REGULATOR_SUPPLY("vqmmc", "sh_mobile_sdhi.0"),
+	REGULATOR_SUPPLY("vmmc", "sh_mmcif.0"),
+	REGULATOR_SUPPLY("vqmmc", "sh_mmcif.0"),
 };
 
 /* SH_MMCIF */
@@ -329,6 +340,9 @@ static struct spi_board_info spi_board_info[] = {
 
 static int __init sh7757lcr_devices_setup(void)
 {
+	regulator_register_always_on(0, "fixed-3.3V", fixed3v3_power_consumers,
+				     ARRAY_SIZE(fixed3v3_power_consumers), 3300000);
+
 	/* RGMII (PTA) */
 	gpio_request(GPIO_FN_ET0_MDC, NULL);
 	gpio_request(GPIO_FN_ET0_MDIO, NULL);

@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2008 - 2012 Intel Corporation. All rights reserved.
+ * Copyright(c) 2008 - 2013 Intel Corporation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -27,9 +27,8 @@
 #include <linux/module.h>
 #include <linux/stringify.h>
 #include "iwl-config.h"
-#include "iwl-cfg.h"
 #include "iwl-agn-hw.h"
-#include "iwl-commands.h" /* needed for BT for now */
+#include "dvm/commands.h" /* needed for BT for now */
 
 /* Highest firmware API version supported */
 #define IWL6000_UCODE_API_MAX 6
@@ -83,10 +82,6 @@ static const struct iwl_base_params iwl6000_base_params = {
 	.max_ll_items = OTP_MAX_LL_ITEMS_6x00,
 	.shadow_ram_support = true,
 	.led_compensation = 51,
-	.adv_thermal_throttle = true,
-	.support_ct_kill_exit = true,
-	.plcp_delta_threshold = IWL_MAX_PLCP_ERR_THRESHOLD_DEF,
-	.chain_noise_scale = 1000,
 	.wd_timeout = IWL_DEF_WD_TIMEOUT,
 	.max_event_log_size = 512,
 	.shadow_reg_enable = false, /* TODO: fix bugs using this feature */
@@ -99,10 +94,6 @@ static const struct iwl_base_params iwl6050_base_params = {
 	.max_ll_items = OTP_MAX_LL_ITEMS_6x50,
 	.shadow_ram_support = true,
 	.led_compensation = 51,
-	.adv_thermal_throttle = true,
-	.support_ct_kill_exit = true,
-	.plcp_delta_threshold = IWL_MAX_PLCP_ERR_THRESHOLD_DEF,
-	.chain_noise_scale = 1500,
 	.wd_timeout = IWL_DEF_WD_TIMEOUT,
 	.max_event_log_size = 1024,
 	.shadow_reg_enable = false, /* TODO: fix bugs using this feature */
@@ -115,10 +106,6 @@ static const struct iwl_base_params iwl6000_g2_base_params = {
 	.max_ll_items = OTP_MAX_LL_ITEMS_6x00,
 	.shadow_ram_support = true,
 	.led_compensation = 57,
-	.adv_thermal_throttle = true,
-	.support_ct_kill_exit = true,
-	.plcp_delta_threshold = IWL_MAX_PLCP_ERR_THRESHOLD_DEF,
-	.chain_noise_scale = 1000,
 	.wd_timeout = IWL_LONG_WD_TIMEOUT,
 	.max_event_log_size = 512,
 	.shadow_reg_enable = false, /* TODO: fix bugs using this feature */
@@ -127,15 +114,20 @@ static const struct iwl_base_params iwl6000_g2_base_params = {
 static const struct iwl_ht_params iwl6000_ht_params = {
 	.ht_greenfield_support = true,
 	.use_rts_for_aggregation = true, /* use rts/cts protection */
+	.ht40_bands = BIT(IEEE80211_BAND_2GHZ) | BIT(IEEE80211_BAND_5GHZ),
 };
 
-static const struct iwl_bt_params iwl6000_bt_params = {
-	/* Due to bluetooth, we transmit 2.4 GHz probes only on antenna A */
-	.advanced_bt_coexist = true,
-	.agg_time_limit = BT_AGG_THRESHOLD_DEF,
-	.bt_init_traffic_load = IWL_BT_COEX_TRAFFIC_LOAD_NONE,
-	.bt_prio_boost = IWLAGN_BT_PRIO_BOOST_DEFAULT,
-	.bt_sco_disable = true,
+static const struct iwl_eeprom_params iwl6000_eeprom_params = {
+	.regulatory_bands = {
+		EEPROM_REG_BAND_1_CHANNELS,
+		EEPROM_REG_BAND_2_CHANNELS,
+		EEPROM_REG_BAND_3_CHANNELS,
+		EEPROM_REG_BAND_4_CHANNELS,
+		EEPROM_REG_BAND_5_CHANNELS,
+		EEPROM_6000_REG_BAND_24_HT40_CHANNELS,
+		EEPROM_REG_BAND_52_HT40_CHANNELS
+	},
+	.enhanced_txpower = true,
 };
 
 #define IWL_DEVICE_6005						\
@@ -146,10 +138,10 @@ static const struct iwl_bt_params iwl6000_bt_params = {
 	.device_family = IWL_DEVICE_FAMILY_6005,		\
 	.max_inst_size = IWL60_RTC_INST_SIZE,			\
 	.max_data_size = IWL60_RTC_DATA_SIZE,			\
-	.eeprom_ver = EEPROM_6005_EEPROM_VERSION,		\
-	.eeprom_calib_ver = EEPROM_6005_TX_POWER_VERSION,	\
+	.nvm_ver = EEPROM_6005_EEPROM_VERSION,		\
+	.nvm_calib_ver = EEPROM_6005_TX_POWER_VERSION,	\
 	.base_params = &iwl6000_g2_base_params,			\
-	.need_temp_offset_calib = true,				\
+	.eeprom_params = &iwl6000_eeprom_params,		\
 	.led_mode = IWL_LED_RF_STATE
 
 const struct iwl_cfg iwl6005_2agn_cfg = {
@@ -200,13 +192,11 @@ const struct iwl_cfg iwl6005_2agn_mow2_cfg = {
 	.device_family = IWL_DEVICE_FAMILY_6030,		\
 	.max_inst_size = IWL60_RTC_INST_SIZE,			\
 	.max_data_size = IWL60_RTC_DATA_SIZE,			\
-	.eeprom_ver = EEPROM_6030_EEPROM_VERSION,		\
-	.eeprom_calib_ver = EEPROM_6030_TX_POWER_VERSION,	\
+	.nvm_ver = EEPROM_6030_EEPROM_VERSION,		\
+	.nvm_calib_ver = EEPROM_6030_TX_POWER_VERSION,	\
 	.base_params = &iwl6000_g2_base_params,			\
-	.bt_params = &iwl6000_bt_params,			\
-	.need_temp_offset_calib = true,				\
-	.led_mode = IWL_LED_RF_STATE,				\
-	.adv_pm = true						\
+	.eeprom_params = &iwl6000_eeprom_params,		\
+	.led_mode = IWL_LED_RF_STATE
 
 const struct iwl_cfg iwl6030_2agn_cfg = {
 	.name = "Intel(R) Centrino(R) Advanced-N 6230 AGN",
@@ -238,13 +228,11 @@ const struct iwl_cfg iwl6030_2bg_cfg = {
 	.device_family = IWL_DEVICE_FAMILY_6030,		\
 	.max_inst_size = IWL60_RTC_INST_SIZE,			\
 	.max_data_size = IWL60_RTC_DATA_SIZE,			\
-	.eeprom_ver = EEPROM_6030_EEPROM_VERSION,		\
-	.eeprom_calib_ver = EEPROM_6030_TX_POWER_VERSION,	\
+	.nvm_ver = EEPROM_6030_EEPROM_VERSION,		\
+	.nvm_calib_ver = EEPROM_6030_TX_POWER_VERSION,	\
 	.base_params = &iwl6000_g2_base_params,			\
-	.bt_params = &iwl6000_bt_params,			\
-	.need_temp_offset_calib = true,				\
-	.led_mode = IWL_LED_RF_STATE,				\
-	.adv_pm = true
+	.eeprom_params = &iwl6000_eeprom_params,		\
+	.led_mode = IWL_LED_RF_STATE
 
 const struct iwl_cfg iwl6035_2agn_cfg = {
 	.name = "Intel(R) Centrino(R) Advanced-N 6235 AGN",
@@ -289,9 +277,10 @@ const struct iwl_cfg iwl130_bg_cfg = {
 	.max_data_size = IWL60_RTC_DATA_SIZE,			\
 	.valid_tx_ant = ANT_BC,		/* .cfg overwrite */	\
 	.valid_rx_ant = ANT_BC,		/* .cfg overwrite */	\
-	.eeprom_ver = EEPROM_6000_EEPROM_VERSION,		\
-	.eeprom_calib_ver = EEPROM_6000_TX_POWER_VERSION,	\
+	.nvm_ver = EEPROM_6000_EEPROM_VERSION,		\
+	.nvm_calib_ver = EEPROM_6000_TX_POWER_VERSION,	\
 	.base_params = &iwl6000_base_params,			\
+	.eeprom_params = &iwl6000_eeprom_params,		\
 	.led_mode = IWL_LED_BLINK
 
 const struct iwl_cfg iwl6000i_2agn_cfg = {
@@ -319,9 +308,10 @@ const struct iwl_cfg iwl6000i_2bg_cfg = {
 	.max_data_size = IWL60_RTC_DATA_SIZE,			\
 	.valid_tx_ant = ANT_AB,		/* .cfg overwrite */	\
 	.valid_rx_ant = ANT_AB,		/* .cfg overwrite */	\
-	.eeprom_ver = EEPROM_6050_EEPROM_VERSION,		\
-	.eeprom_calib_ver = EEPROM_6050_TX_POWER_VERSION,	\
+	.nvm_ver = EEPROM_6050_EEPROM_VERSION,		\
+	.nvm_calib_ver = EEPROM_6050_TX_POWER_VERSION,	\
 	.base_params = &iwl6050_base_params,			\
+	.eeprom_params = &iwl6000_eeprom_params,		\
 	.led_mode = IWL_LED_BLINK,				\
 	.internal_wimax_coex = true
 
@@ -343,9 +333,10 @@ const struct iwl_cfg iwl6050_2abg_cfg = {
 	.device_family = IWL_DEVICE_FAMILY_6150,		\
 	.max_inst_size = IWL60_RTC_INST_SIZE,			\
 	.max_data_size = IWL60_RTC_DATA_SIZE,			\
-	.eeprom_ver = EEPROM_6150_EEPROM_VERSION,		\
-	.eeprom_calib_ver = EEPROM_6150_TX_POWER_VERSION,	\
+	.nvm_ver = EEPROM_6150_EEPROM_VERSION,		\
+	.nvm_calib_ver = EEPROM_6150_TX_POWER_VERSION,	\
 	.base_params = &iwl6050_base_params,			\
+	.eeprom_params = &iwl6000_eeprom_params,		\
 	.led_mode = IWL_LED_BLINK,				\
 	.internal_wimax_coex = true
 
@@ -369,9 +360,10 @@ const struct iwl_cfg iwl6000_3agn_cfg = {
 	.device_family = IWL_DEVICE_FAMILY_6000,
 	.max_inst_size = IWL60_RTC_INST_SIZE,
 	.max_data_size = IWL60_RTC_DATA_SIZE,
-	.eeprom_ver = EEPROM_6000_EEPROM_VERSION,
-	.eeprom_calib_ver = EEPROM_6000_TX_POWER_VERSION,
+	.nvm_ver = EEPROM_6000_EEPROM_VERSION,
+	.nvm_calib_ver = EEPROM_6000_TX_POWER_VERSION,
 	.base_params = &iwl6000_base_params,
+	.eeprom_params = &iwl6000_eeprom_params,
 	.ht_params = &iwl6000_ht_params,
 	.led_mode = IWL_LED_BLINK,
 };

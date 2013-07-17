@@ -1719,21 +1719,6 @@ static void ips_remove(struct pci_dev *dev)
 	dev_dbg(&dev->dev, "IPS driver removed\n");
 }
 
-#ifdef CONFIG_PM
-static int ips_suspend(struct pci_dev *dev, pm_message_t state)
-{
-	return 0;
-}
-
-static int ips_resume(struct pci_dev *dev)
-{
-	return 0;
-}
-#else
-#define ips_suspend NULL
-#define ips_resume NULL
-#endif /* CONFIG_PM */
-
 static void ips_shutdown(struct pci_dev *dev)
 {
 }
@@ -1743,23 +1728,10 @@ static struct pci_driver ips_pci_driver = {
 	.id_table = ips_id_table,
 	.probe = ips_probe,
 	.remove = ips_remove,
-	.suspend = ips_suspend,
-	.resume = ips_resume,
 	.shutdown = ips_shutdown,
 };
 
-static int __init ips_init(void)
-{
-	return pci_register_driver(&ips_pci_driver);
-}
-module_init(ips_init);
-
-static void ips_exit(void)
-{
-	pci_unregister_driver(&ips_pci_driver);
-	return;
-}
-module_exit(ips_exit);
+module_pci_driver(ips_pci_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Jesse Barnes <jbarnes@virtuousgeek.org>");

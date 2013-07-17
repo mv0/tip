@@ -1,3 +1,5 @@
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/module.h>
 #include <linux/reboot.h>
 #include <linux/init.h>
@@ -20,14 +22,12 @@
 #include <asm/virtext.h>
 #include <asm/cpu.h>
 #include <asm/nmi.h>
+#include <asm/smp.h>
 
-#ifdef CONFIG_X86_32
-# include <linux/ctype.h>
-# include <linux/mc146818rtc.h>
-# include <asm/realmode.h>
-#else
-# include <asm/x86_init.h>
-#endif
+#include <linux/ctype.h>
+#include <linux/mc146818rtc.h>
+#include <asm/realmode.h>
+#include <asm/x86_init.h>
 
 /*
  * Power off function, if any
@@ -36,22 +36,6 @@ void (*pm_power_off)(void);
 EXPORT_SYMBOL(pm_power_off);
 
 static const struct desc_ptr no_idt = {};
-static int reboot_mode;
-enum reboot_type reboot_type = BOOT_ACPI;
-int reboot_force;
-
-/*
- * This variable is used privately to keep track of whether or not
- * reboot_type is still set to its default value (i.e., reboot= hasn't
- * been set on the command line).  This is needed so that we can
- * suppress DMI scanning for reboot quirks.  Without it, it's
- * impossible to override a faulty reboot quirk without recompiling.
- */
-static int reboot_default = 1;
-
-#if defined(CONFIG_X86_32) && defined(CONFIG_SMP)
-static int reboot_cpu = -1;
-#endif
 
 /*
  * This is set if we need to go through the 'emergency' path.
@@ -63,82 +47,6 @@ static int reboot_emergency;
 /* This is set by the PCI code if either type 1 or type 2 PCI is detected */
 bool port_cf9_safe = false;
 
-/*
- * reboot=b[ios] | s[mp] | t[riple] | k[bd] | e[fi] [, [w]arm | [c]old] | p[ci]
- * warm   Don't set the cold reboot flag
- * cold   Set the cold reboot flag
- * bios   Reboot by jumping through the BIOS (only for X86_32)
- * smp    Reboot by executing reset on BSP or other CPU (only for X86_32)
- * triple Force a triple fault (init)
- * kbd    Use the keyboard controller. cold reset (default)
- * acpi   Use the RESET_REG in the FADT
- * efi    Use efi reset_system runtime service
- * pci    Use the so-called "PCI reset register", CF9
- * force  Avoid anything that could hang.
- */
-static int __init reboot_setup(char *str)
-{
-	for (;;) {
-		/*
-		 * Having anything passed on the command line via
-		 * reboot= will cause us to disable DMI checking
-		 * below.
-		 */
-		reboot_default = 0;
-
-		switch (*str) {
-		case 'w':
-			reboot_mode = 0x1234;
-			break;
-
-		case 'c':
-			reboot_mode = 0;
-			break;
-
-#ifdef CONFIG_X86_32
-#ifdef CONFIG_SMP
-		case 's':
-			if (isdigit(*(str+1))) {
-				reboot_cpu = (int) (*(str+1) - '0');
-				if (isdigit(*(str+2)))
-					reboot_cpu = reboot_cpu*10 + (int)(*(str+2) - '0');
-			}
-			/*
-			 * We will leave sorting out the final value
-			 * when we are ready to reboot, since we might not
-			 * have detected BSP APIC ID or smp_num_cpu
-			 */
-			break;
-#endif /* CONFIG_SMP */
-
-		case 'b':
-#endif
-		case 'a':
-		case 'k':
-		case 't':
-		case 'e':
-		case 'p':
-			reboot_type = *str;
-			break;
-
-		case 'f':
-			reboot_force = 1;
-			break;
-		}
-
-		str = strchr(str, ',');
-		if (str)
-			str++;
-		else
-			break;
-	}
-	return 1;
-}
-
-__setup("reboot=", reboot_setup);
-
-
-#ifdef CONFIG_X86_32
 /*
  * Reboot options and system auto-detection code provided by
  * Dell Inc. so their systems "just work". :-)
@@ -152,16 +60,14 @@ static int __init set_bios_reboot(const struct dmi_system_id *d)
 {
 	if (reboot_type != BOOT_BIOS) {
 		reboot_type = BOOT_BIOS;
-		printk(KERN_INFO "%s series board detected. Selecting BIOS-method for reboots.\n", d->ident);
+		pr_info("%s series board detected. Selecting %s-method for reboots.\n",
+			"BIOS", d->ident);
 	}
 	return 0;
 }
 
-void machine_real_restart(unsigned int type)
+void __noreturn machine_real_restart(unsigned int type)
 {
-	void (*restart_lowmem)(unsigned int) = (void (*)(unsigned int))
-		real_mode_header->machine_real_restart_asm;
-
 	local_irq_disable();
 
 	/*
@@ -181,24 +87,27 @@ void machine_real_restart(unsigned int type)
 	/*
 	 * Switch back to the initial page table.
 	 */
+#ifdef CONFIG_X86_32
 	load_cr3(initial_page_table);
-
-	/*
-	 * Write 0x1234 to absolute memory location 0x472.  The BIOS reads
-	 * this on booting to tell it to "Bypass memory test (also warm
-	 * boot)".  This seems like a fairly standard thing that gets set by
-	 * REBOOT.COM programs, and the previous reset routine did this
-	 * too. */
-	*((unsigned short *)0x472) = reboot_mode;
+#else
+	write_cr3(real_mode_header->trampoline_pgd);
+#endif
 
 	/* Jump to the identity-mapped low memory code */
-	restart_lowmem(type);
+#ifdef CONFIG_X86_32
+	asm volatile("jmpl *%0" : :
+		     "rm" (real_mode_header->machine_real_restart_asm),
+		     "a" (type));
+#else
+	asm volatile("ljmpl *%0" : :
+		     "m" (real_mode_header->machine_real_restart_asm),
+		     "D" (type));
+#endif
+	unreachable();
 }
 #ifdef CONFIG_APM_MODULE
 EXPORT_SYMBOL(machine_real_restart);
 #endif
-
-#endif /* CONFIG_X86_32 */
 
 /*
  * Some Apple MacBook and MacBookPro's needs reboot=p to be able to reboot
@@ -207,8 +116,8 @@ static int __init set_pci_reboot(const struct dmi_system_id *d)
 {
 	if (reboot_type != BOOT_CF9) {
 		reboot_type = BOOT_CF9;
-		printk(KERN_INFO "%s series board detected. "
-		       "Selecting PCI-method for reboots.\n", d->ident);
+		pr_info("%s series board detected. Selecting %s-method for reboots.\n",
+			"PCI", d->ident);
 	}
 	return 0;
 }
@@ -217,17 +126,16 @@ static int __init set_kbd_reboot(const struct dmi_system_id *d)
 {
 	if (reboot_type != BOOT_KBD) {
 		reboot_type = BOOT_KBD;
-		printk(KERN_INFO "%s series board detected. Selecting KBD-method for reboot.\n", d->ident);
+		pr_info("%s series board detected. Selecting %s-method for reboot.\n",
+			"KBD", d->ident);
 	}
 	return 0;
 }
 
 /*
- * This is a single dmi_table handling all reboot quirks.  Note that
- * REBOOT_BIOS is only available for 32bit
+ * This is a single dmi_table handling all reboot quirks.
  */
 static struct dmi_system_id __initdata reboot_dmi_table[] = {
-#ifdef CONFIG_X86_32
 	{	/* Handle problems with rebooting on Dell E520's */
 		.callback = set_bios_reboot,
 		.ident = "Dell E520",
@@ -361,14 +269,6 @@ static struct dmi_system_id __initdata reboot_dmi_table[] = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "VGN-Z540N"),
 		},
 	},
-	{	/* Handle problems with rebooting on CompuLab SBC-FITPC2 */
-		.callback = set_bios_reboot,
-		.ident = "CompuLab SBC-FITPC2",
-		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "CompuLab"),
-			DMI_MATCH(DMI_PRODUCT_NAME, "SBC-FITPC2"),
-		},
-	},
 	{	/* Handle problems with rebooting on ASUS P4S800 */
 		.callback = set_bios_reboot,
 		.ident = "ASUS P4S800",
@@ -377,7 +277,6 @@ static struct dmi_system_id __initdata reboot_dmi_table[] = {
 			DMI_MATCH(DMI_BOARD_NAME, "P4S800"),
 		},
 	},
-#endif /* CONFIG_X86_32 */
 
 	{	/* Handle reboot issue on Acer Aspire one */
 		.callback = set_kbd_reboot,
@@ -548,6 +447,7 @@ static void native_machine_emergency_restart(void)
 	int i;
 	int attempt = 0;
 	int orig_reboot_type = reboot_type;
+	unsigned short mode;
 
 	if (reboot_emergency)
 		emergency_vmx_disable_all();
@@ -555,7 +455,8 @@ static void native_machine_emergency_restart(void)
 	tboot_shutdown(TB_SHUTDOWN_REBOOT);
 
 	/* Tell the BIOS if we want cold or warm reboot */
-	*((unsigned short *)__va(0x472)) = reboot_mode;
+	mode = reboot_mode == REBOOT_WARM ? 0x1234 : 0;
+	*((unsigned short *)__va(0x472)) = mode;
 
 	for (;;) {
 		/* Could also try the reset bit in the Hammer NB */
@@ -584,13 +485,11 @@ static void native_machine_emergency_restart(void)
 			reboot_type = BOOT_KBD;
 			break;
 
-#ifdef CONFIG_X86_32
 		case BOOT_BIOS:
 			machine_real_restart(MRR_BIOS);
 
 			reboot_type = BOOT_KBD;
 			break;
-#endif
 
 		case BOOT_ACPI:
 			acpi_reboot();
@@ -598,8 +497,8 @@ static void native_machine_emergency_restart(void)
 			break;
 
 		case BOOT_EFI:
-			if (efi_enabled)
-				efi.reset_system(reboot_mode ?
+			if (efi_enabled(EFI_RUNTIME_SERVICES))
+				efi.reset_system(reboot_mode == REBOOT_WARM ?
 						 EFI_RESET_WARM :
 						 EFI_RESET_COLD,
 						 EFI_SUCCESS, 0, NULL);
@@ -628,28 +527,10 @@ void native_machine_shutdown(void)
 {
 	/* Stop the cpus and apics */
 #ifdef CONFIG_SMP
-
-	/* The boot cpu is always logical cpu 0 */
-	int reboot_cpu_id = 0;
-
-#ifdef CONFIG_X86_32
-	/* See if there has been given a command line override */
-	if ((reboot_cpu != -1) && (reboot_cpu < nr_cpu_ids) &&
-		cpu_online(reboot_cpu))
-		reboot_cpu_id = reboot_cpu;
-#endif
-
-	/* Make certain the cpu I'm about to reboot on is online */
-	if (!cpu_online(reboot_cpu_id))
-		reboot_cpu_id = smp_processor_id();
-
-	/* Make certain I only run on the appropriate processor */
-	set_cpus_allowed_ptr(current, cpumask_of(reboot_cpu_id));
-
 	/*
-	 * O.K Now that I'm on the appropriate processor, stop all of the
-	 * others. Also disable the local irq to not receive the per-cpu
-	 * timer interrupt which may trigger scheduler's load balance.
+	 * Stop all of the others. Also disable the local irq to
+	 * not receive the per-cpu timer interrupt which may trigger
+	 * scheduler's load balance.
 	 */
 	local_irq_disable();
 	stop_other_cpus();
@@ -678,7 +559,7 @@ static void __machine_emergency_restart(int emergency)
 
 static void native_machine_restart(char *__unused)
 {
-	printk("machine restart\n");
+	pr_notice("machine restart\n");
 
 	if (!reboot_force)
 		machine_shutdown();

@@ -1,6 +1,6 @@
 /* bnx2x_dcb.h: Broadcom Everest network driver.
  *
- * Copyright 2009-2012 Broadcom Corporation
+ * Copyright 2009-2013 Broadcom Corporation
  *
  * Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -134,8 +134,6 @@ enum {
 #define PFC_BRB1_REG_HIGH_LLFC_LOW_THRESHOLD			130
 #define PFC_BRB1_REG_HIGH_LLFC_HIGH_THRESHOLD			170
 
-
-
 struct cos_entry_help_data {
 	u32			pri_join_mask;
 	u32			cos_bw;
@@ -169,7 +167,6 @@ struct cos_help_data {
 #define IS_DCBX_PFC_PRI_MIX_PAUSE(bp, pg_pri)	\
 			(!(IS_DCBX_PFC_PRI_ONLY_NON_PAUSE((bp), (pg_pri)) || \
 			 IS_DCBX_PFC_PRI_ONLY_PAUSE((bp), (pg_pri))))
-
 
 struct pg_entry_help_data {
 	u8	num_of_dif_pri;

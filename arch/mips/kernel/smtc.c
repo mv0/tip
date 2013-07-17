@@ -34,6 +34,7 @@
 #include <asm/hardirq.h>
 #include <asm/hazards.h>
 #include <asm/irq.h>
+#include <asm/idle.h>
 #include <asm/mmu_context.h>
 #include <asm/mipsregs.h>
 #include <asm/cacheflush.h>
@@ -41,6 +42,7 @@
 #include <asm/addrspace.h>
 #include <asm/smtc.h>
 #include <asm/smtc_proc.h>
+#include <asm/setup.h>
 
 /*
  * SMTC Kernel needs to manipulate low-level CPU interrupt mask
@@ -84,6 +86,13 @@ asiduse smtc_live_asid[MAX_SMTC_TLBS][MAX_SMTC_ASIDS];
 
 struct smtc_ipi_q IPIQ[NR_CPUS];
 static struct smtc_ipi_q freeIPIq;
+
+
+/*
+ * Number of FPU contexts for each VPE
+ */
+
+static int smtc_nconf1[MAX_SMTC_VPES];
 
 
 /* Forward declarations */
@@ -174,9 +183,9 @@ static int __init tintq(char *str)
 
 __setup("tintq=", tintq);
 
-static int imstuckcount[2][8];
+static int imstuckcount[MAX_SMTC_VPES][8];
 /* vpemask represents IM/IE bits of per-VPE Status registers, low-to-high */
-static int vpemask[2][8] = {
+static int vpemask[MAX_SMTC_VPES][8] = {
 	{0, 0, 1, 0, 0, 0, 0, 1},
 	{0, 0, 0, 0, 0, 0, 0, 1}
 };
@@ -228,7 +237,7 @@ static void smtc_configure_tlb(void)
 		    mips_ihb();
 		    /* No need to un-Halt - that happens later anyway */
 		    for (i=0; i < vpes; i++) {
-		    	write_tc_c0_tcbind(i);
+			write_tc_c0_tcbind(i);
 			/*
 			 * To be 100% sure we're really getting the right
 			 * information, we exit the configuration state
@@ -279,7 +288,7 @@ static void smtc_configure_tlb(void)
 
 /*
  * Incrementally build the CPU map out of constituent MIPS MT cores,
- * using the specified available VPEs and TCs.  Plaform code needs
+ * using the specified available VPEs and TCs.	Plaform code needs
  * to ensure that each MIPS MT core invokes this routine on reset,
  * one at a time(!).
  *
@@ -331,6 +340,22 @@ int __init smtc_build_cpu_map(int start_cpu_slot)
 
 static void smtc_tc_setup(int vpe, int tc, int cpu)
 {
+	static int cp1contexts[MAX_SMTC_VPES];
+
+	/*
+	 * Make a local copy of the available FPU contexts in order
+	 * to keep track of TCs that can have one.
+	 */
+	if (tc == 1)
+	{
+		/*
+		 * FIXME: Multi-core SMTC hasn't been tested and the
+		 *	  maximum number of VPEs may change.
+		 */
+		cp1contexts[0] = smtc_nconf1[0] - 1;
+		cp1contexts[1] = smtc_nconf1[1];
+	}
+
 	settc(tc);
 	write_tc_c0_tchalt(TCHALT_H);
 	mips_ihb();
@@ -343,22 +368,29 @@ static void smtc_tc_setup(int vpe, int tc, int cpu)
 	 * an active IPI queue.
 	 */
 	write_tc_c0_tccontext((sizeof(struct smtc_ipi_q) * cpu) << 16);
-	/* Bind tc to vpe */
+
+	/* Bind TC to VPE. */
 	write_tc_c0_tcbind(vpe);
+
 	/* In general, all TCs should have the same cpu_data indications. */
 	memcpy(&cpu_data[cpu], &cpu_data[0], sizeof(struct cpuinfo_mips));
-	/* For 34Kf, start with TC/CPU 0 as sole owner of single FPU context */
-	if (cpu_data[0].cputype == CPU_34K ||
-	    cpu_data[0].cputype == CPU_1004K)
+
+	/* Check to see if there is a FPU context available for this TC. */
+	if (!cp1contexts[vpe])
 		cpu_data[cpu].options &= ~MIPS_CPU_FPU;
+	else
+		cp1contexts[vpe]--;
+
+	/* Store the TC and VPE into the cpu_data structure. */
 	cpu_data[cpu].vpe_id = vpe;
 	cpu_data[cpu].tc_id = tc;
-	/* Multi-core SMTC hasn't been tested, but be prepared */
+
+	/* FIXME: Multi-core SMTC hasn't been tested, but be prepared. */
 	cpu_data[cpu].core = (read_vpe_c0_ebase() >> 1) & 0xff;
 }
 
 /*
- * Tweak to get Count registes in as close a sync as possible.  The
+ * Tweak to get Count registers synced as closely as possible. The
  * value seems good for 34K-class cores.
  */
 
@@ -466,6 +498,24 @@ void smtc_prepare_cpus(int cpus)
 	smtc_configure_tlb();
 
 	for (tc = 0, vpe = 0 ; (vpe < nvpe) && (tc < ntc) ; vpe++) {
+		/* Get number of CP1 contexts for each VPE. */
+		if (tc == 0)
+		{
+			/*
+			 * Do not call settc() for TC0 or the FPU context
+			 * value will be incorrect. Besides, we know that
+			 * we are TC0 anyway.
+			 */
+			smtc_nconf1[0] = ((read_vpe_c0_vpeconf1() &
+				VPECONF1_NCP1) >> VPECONF1_NCP1_SHIFT);
+			if (nvpe == 2)
+			{
+				settc(1);
+				smtc_nconf1[1] = ((read_vpe_c0_vpeconf1() &
+					VPECONF1_NCP1) >> VPECONF1_NCP1_SHIFT);
+				settc(0);
+			}
+		}
 		if (tcpervpe[vpe] == 0)
 			continue;
 		if (vpe != 0)
@@ -479,6 +529,18 @@ void smtc_prepare_cpus(int cpus)
 			 */
 			if (tc != 0) {
 				smtc_tc_setup(vpe, tc, cpu);
+				if (vpe != 0) {
+					/*
+					 * Set MVP bit (possibly again).  Do it
+					 * here to catch CPUs that have no TCs
+					 * bound to the VPE at reset.  In that
+					 * case, a TC must be bound to the VPE
+					 * before we can set VPEControl[MVP]
+					 */
+					write_vpe_c0_vpeconf0(
+						read_vpe_c0_vpeconf0() |
+						VPECONF0_MVP);
+				}
 				cpu++;
 			}
 			printk(" %d", tc);
@@ -701,9 +763,9 @@ void smtc_forward_irq(struct irq_data *d)
 	 * mask has been purged of bits corresponding to nonexistent and
 	 * offline "CPUs", and to TCs bound to VPEs other than the VPE
 	 * connected to the physical interrupt input for the interrupt
-	 * in question.  Otherwise we have a nasty problem with interrupt
+	 * in question.	 Otherwise we have a nasty problem with interrupt
 	 * mask management.  This is best handled in non-performance-critical
-	 * platform IRQ affinity setting code,  to minimize interrupt-time
+	 * platform IRQ affinity setting code,	to minimize interrupt-time
 	 * checks.
 	 */
 
@@ -797,7 +859,6 @@ void smtc_send_ipi(int cpu, int type, unsigned int action)
 	unsigned long flags;
 	int mtflags;
 	unsigned long tcrestart;
-	extern void r4k_wait_irqoff(void), __pastwait(void);
 	int set_resched_flag = (type == LINUX_SMP_IPI &&
 				action == SMP_RESCHEDULE_YOURSELF);
 
@@ -839,10 +900,10 @@ void smtc_send_ipi(int cpu, int type, unsigned int action)
 		mips_ihb();
 
 		/*
-	 	 * Inspect TCStatus - if IXMT is set, we have to queue
+		 * Inspect TCStatus - if IXMT is set, we have to queue
 		 * a message. Otherwise, we set up the "interrupt"
 		 * of the other TC
-	 	 */
+		 */
 		tcstatus = read_tc_c0_tcstatus();
 
 		if ((tcstatus & TCSTATUS_IXMT) != 0) {
@@ -853,8 +914,7 @@ void smtc_send_ipi(int cpu, int type, unsigned int action)
 			 */
 			if (cpu_wait == r4k_wait_irqoff) {
 				tcrestart = read_tc_c0_tcrestart();
-				if (tcrestart >= (unsigned long)r4k_wait_irqoff
-				    && tcrestart < (unsigned long)__pastwait) {
+				if (address_is_in_r4k_wait_irqoff(tcrestart)) {
 					write_tc_c0_tcrestart(__pastwait);
 					tcstatus &= ~TCSTATUS_IXMT;
 					write_tc_c0_tcstatus(tcstatus);
@@ -904,7 +964,7 @@ static void post_direct_ipi(int cpu, struct smtc_ipi *pipi)
 	 * CU bit of Status is indicator that TC was
 	 * already running on a kernel stack...
 	 */
-	if (tcstatus & ST0_CU0)  {
+	if (tcstatus & ST0_CU0)	 {
 		/* Note that this "- 1" is pointer arithmetic */
 		kstack = ((struct pt_regs *)read_tc_gpr_sp()) - 1;
 	} else {
@@ -1228,7 +1288,7 @@ void smtc_idle_loop_hook(void)
 			for (tc = 0; tc < hook_ntcs; tc++) {
 				tcnoprog[tc] = 0;
 				clock_hang_reported[tc] = 0;
-	    		}
+			}
 			for (vpe = 0; vpe < 2; vpe++)
 				for (im = 0; im < 8; im++)
 					imstuckcount[vpe][im] = 0;
@@ -1425,7 +1485,7 @@ static int halt_state_save[NR_CPUS];
 
 /*
  * To really, really be sure that nothing is being done
- * by other TCs, halt them all.  This code assumes that
+ * by other TCs, halt them all.	 This code assumes that
  * a DVPE has already been done, so while their Halted
  * state is theoretically architecturally unstable, in
  * practice, it's not going to change while we're looking

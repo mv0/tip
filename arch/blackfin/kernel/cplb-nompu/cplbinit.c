@@ -30,6 +30,7 @@ void __init generate_cplb_tables_cpu(unsigned int cpu)
 {
 	int i_d, i_i;
 	unsigned long addr;
+	unsigned long cplb_pageflags, cplb_pagesize;
 
 	struct cplb_entry *d_tbl = dcplb_tbl[cpu];
 	struct cplb_entry *i_tbl = icplb_tbl[cpu];
@@ -49,20 +50,37 @@ void __init generate_cplb_tables_cpu(unsigned int cpu)
 	/* Cover kernel memory with 4M pages.  */
 	addr = 0;
 
-	for (; addr < memory_start; addr += 4 * 1024 * 1024) {
+#ifdef PAGE_SIZE_16MB
+	cplb_pageflags = PAGE_SIZE_16MB;
+	cplb_pagesize = SIZE_16M;
+#else
+	cplb_pageflags = PAGE_SIZE_4MB;
+	cplb_pagesize = SIZE_4M;
+#endif
+
+
+	for (; addr < memory_start; addr += cplb_pagesize) {
 		d_tbl[i_d].addr = addr;
-		d_tbl[i_d++].data = SDRAM_DGENERIC | PAGE_SIZE_4MB;
+		d_tbl[i_d++].data = SDRAM_DGENERIC | cplb_pageflags;
 		i_tbl[i_i].addr = addr;
-		i_tbl[i_i++].data = SDRAM_IGENERIC | PAGE_SIZE_4MB;
+		i_tbl[i_i++].data = SDRAM_IGENERIC | cplb_pageflags;
 	}
 
 #ifdef CONFIG_ROMKERNEL
 	/* Cover kernel XIP flash area */
+#ifdef CONFIG_BF60x
+	addr = CONFIG_ROM_BASE & ~(16 * 1024 * 1024 - 1);
+	d_tbl[i_d].addr = addr;
+	d_tbl[i_d++].data = SDRAM_DGENERIC | PAGE_SIZE_16MB;
+	i_tbl[i_i].addr = addr;
+	i_tbl[i_i++].data = SDRAM_IGENERIC | PAGE_SIZE_16MB;
+#else
 	addr = CONFIG_ROM_BASE & ~(4 * 1024 * 1024 - 1);
 	d_tbl[i_d].addr = addr;
 	d_tbl[i_d++].data = SDRAM_DGENERIC | PAGE_SIZE_4MB;
 	i_tbl[i_i].addr = addr;
 	i_tbl[i_i++].data = SDRAM_IGENERIC | PAGE_SIZE_4MB;
+#endif
 #endif
 
 	/* Cover L1 memory.  One 4M area for code and data each is enough.  */

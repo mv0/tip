@@ -289,8 +289,11 @@ int jbd2_journal_recover(journal_t *journal)
 	if (!err)
 		err = err2;
 	/* Make sure all replayed data is on permanent storage */
-	if (journal->j_flags & JBD2_BARRIER)
-		blkdev_issue_flush(journal->j_fs_dev, GFP_KERNEL, NULL);
+	if (journal->j_flags & JBD2_BARRIER) {
+		err2 = blkdev_issue_flush(journal->j_fs_dev, GFP_KERNEL, NULL);
+		if (!err)
+			err = err2;
+	}
 	return err;
 }
 
@@ -396,18 +399,17 @@ static int jbd2_commit_block_csum_verify(journal_t *j, void *buf)
 static int jbd2_block_tag_csum_verify(journal_t *j, journal_block_tag_t *tag,
 				      void *buf, __u32 sequence)
 {
-	__u32 provided, calculated;
+	__u32 csum32;
 
 	if (!JBD2_HAS_INCOMPAT_FEATURE(j, JBD2_FEATURE_INCOMPAT_CSUM_V2))
 		return 1;
 
 	sequence = cpu_to_be32(sequence);
-	calculated = jbd2_chksum(j, j->j_csum_seed, (__u8 *)&sequence,
-				 sizeof(sequence));
-	calculated = jbd2_chksum(j, calculated, buf, j->j_blocksize);
-	provided = be32_to_cpu(tag->t_checksum);
+	csum32 = jbd2_chksum(j, j->j_csum_seed, (__u8 *)&sequence,
+			     sizeof(sequence));
+	csum32 = jbd2_chksum(j, csum32, buf, j->j_blocksize);
 
-	return provided == cpu_to_be32(calculated);
+	return tag->t_checksum == cpu_to_be16(csum32);
 }
 
 static int do_one_pass(journal_t *journal,

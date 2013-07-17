@@ -47,22 +47,22 @@
 #include <asm/irq.h>
 #include <asm/mach-types.h>
 
-#include <mach/regs-gpio.h>
-#include <mach/leds-gpio.h>
+#include <linux/platform_data/leds-s3c24xx.h>
 #include <mach/regs-lcd.h>
 #include <plat/regs-serial.h>
 #include <mach/fb.h>
-#include <plat/nand.h>
-#include <plat/udc.h>
-#include <plat/iic.h>
+#include <linux/platform_data/mtd-nand-s3c2410.h>
+#include <linux/platform_data/usb-s3c2410_udc.h>
+#include <linux/platform_data/i2c-s3c2410.h>
 
-#include <plat/common-smdk.h>
 #include <plat/gpio-cfg.h>
 #include <plat/devs.h>
 #include <plat/cpu.h>
 #include <plat/pm.h>
+#include <plat/samsung-time.h>
 
 #include "common.h"
+#include "common-smdk.h"
 
 static struct map_desc qt2410_iodesc[] __initdata = {
 	{ 0xe0000000, __phys_to_pfn(S3C2410_CS3+0x01000000), SZ_1M, MT_DEVICE }
@@ -305,6 +305,7 @@ static void __init qt2410_map_io(void)
 	s3c24xx_init_io(qt2410_iodesc, ARRAY_SIZE(qt2410_iodesc));
 	s3c24xx_init_clocks(12*1000*1000);
 	s3c24xx_init_uarts(smdk2410_uartcfgs, ARRAY_SIZE(smdk2410_uartcfgs));
+	samsung_set_timer_source(SAMSUNG_PWM3, SAMSUNG_PWM4);
 }
 
 static void __init qt2410_machine_init(void)
@@ -325,8 +326,9 @@ static void __init qt2410_machine_init(void)
 	}
 	s3c24xx_fb_set_platdata(&qt2410_fb_info);
 
-	s3c_gpio_cfgpin(S3C2410_GPB(0), S3C2410_GPIO_OUTPUT);
-	s3c2410_gpio_setpin(S3C2410_GPB(0), 1);
+	/* set initial state of the LED GPIO */
+	WARN_ON(gpio_request_one(S3C2410_GPB(0), GPIOF_OUT_INIT_HIGH, NULL));
+	gpio_free(S3C2410_GPB(0));
 
 	s3c24xx_udc_set_platdata(&qt2410_udc_cfg);
 	s3c_i2c0_set_platdata(NULL);
@@ -341,8 +343,8 @@ static void __init qt2410_machine_init(void)
 MACHINE_START(QT2410, "QT2410")
 	.atag_offset	= 0x100,
 	.map_io		= qt2410_map_io,
-	.init_irq	= s3c24xx_init_irq,
+	.init_irq	= s3c2410_init_irq,
 	.init_machine	= qt2410_machine_init,
-	.timer		= &s3c24xx_timer,
+	.init_time	= samsung_timer_init,
 	.restart	= s3c2410_restart,
 MACHINE_END

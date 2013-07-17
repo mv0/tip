@@ -37,9 +37,8 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
-#include <linux/pinctrl/consumer.h>
 
-#include <mach/spi.h>
+#include <linux/platform_data/spi-imx.h>
 
 #define DRIVER_NAME "spi_imx"
 
@@ -97,7 +96,7 @@ struct spi_imx_data {
 	const void *tx_buf;
 	unsigned int txfifo; /* number of words pushed in tx FIFO */
 
-	struct spi_imx_devtype_data *devtype_data;
+	const struct spi_imx_devtype_data *devtype_data;
 	int chipselect[0];
 };
 
@@ -197,6 +196,7 @@ static unsigned int spi_imx_clkdiv_2(unsigned int fin,
 #define MX51_ECSPI_CONFIG_SCLKPOL(cs)	(1 << ((cs) +  4))
 #define MX51_ECSPI_CONFIG_SBBCTRL(cs)	(1 << ((cs) +  8))
 #define MX51_ECSPI_CONFIG_SSBPOL(cs)	(1 << ((cs) + 12))
+#define MX51_ECSPI_CONFIG_SCLKCTL(cs)	(1 << ((cs) + 20))
 
 #define MX51_ECSPI_INT		0x10
 #define MX51_ECSPI_INT_TEEN		(1 <<  0)
@@ -287,9 +287,10 @@ static int __maybe_unused mx51_ecspi_config(struct spi_imx_data *spi_imx,
 	if (config->mode & SPI_CPHA)
 		cfg |= MX51_ECSPI_CONFIG_SCLKPHA(config->cs);
 
-	if (config->mode & SPI_CPOL)
+	if (config->mode & SPI_CPOL) {
 		cfg |= MX51_ECSPI_CONFIG_SCLKPOL(config->cs);
-
+		cfg |= MX51_ECSPI_CONFIG_SCLKCTL(config->cs);
+	}
 	if (config->mode & SPI_CS_HIGH)
 		cfg |= MX51_ECSPI_CONFIG_SSBPOL(config->cs);
 
@@ -626,7 +627,7 @@ static void spi_imx_chipselect(struct spi_device *spi, int is_active)
 	int active = is_active != BITBANG_CS_INACTIVE;
 	int dev_is_lowactive = !(spi->mode & SPI_CS_HIGH);
 
-	if (gpio < 0)
+	if (!gpio_is_valid(gpio))
 		return;
 
 	gpio_set_value(gpio, dev_is_lowactive ^ active);
@@ -688,8 +689,6 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 		config.speed_hz = spi->max_speed_hz;
 	if (!config.bpw)
 		config.bpw = spi->bits_per_word;
-	if (!config.speed_hz)
-		config.speed_hz = spi->max_speed_hz;
 
 	/* Initialize the functions for transfer */
 	if (config.bpw <= 8) {
@@ -698,11 +697,10 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 	} else if (config.bpw <= 16) {
 		spi_imx->rx = spi_imx_buf_rx_u16;
 		spi_imx->tx = spi_imx_buf_tx_u16;
-	} else if (config.bpw <= 32) {
+	} else {
 		spi_imx->rx = spi_imx_buf_rx_u32;
 		spi_imx->tx = spi_imx_buf_tx_u32;
-	} else
-		BUG();
+	}
 
 	spi_imx->devtype_data->config(spi_imx, &config);
 
@@ -738,7 +736,7 @@ static int spi_imx_setup(struct spi_device *spi)
 	dev_dbg(&spi->dev, "%s: mode %d, %u bpw, %d hz\n", __func__,
 		 spi->mode, spi->bits_per_word, spi->max_speed_hz);
 
-	if (gpio >= 0)
+	if (gpio_is_valid(gpio))
 		gpio_direction_output(gpio, spi->mode & SPI_CS_HIGH ? 0 : 1);
 
 	spi_imx_chipselect(spi, BITBANG_CS_INACTIVE);
@@ -750,7 +748,7 @@ static void spi_imx_cleanup(struct spi_device *spi)
 {
 }
 
-static int __devinit spi_imx_probe(struct platform_device *pdev)
+static int spi_imx_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
 	const struct of_device_id *of_id =
@@ -760,7 +758,6 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	struct spi_master *master;
 	struct spi_imx_data *spi_imx;
 	struct resource *res;
-	struct pinctrl *pinctrl;
 	int i, ret, num_cs;
 
 	if (!np && !mxc_platform_info) {
@@ -783,6 +780,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, master);
 
+	master->bits_per_word_mask = SPI_BPW_RANGE_MASK(1, 32);
 	master->bus_num = pdev->id;
 	master->num_chipselect = num_cs;
 
@@ -791,11 +789,11 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 
 	for (i = 0; i < master->num_chipselect; i++) {
 		int cs_gpio = of_get_named_gpio(np, "cs-gpios", i);
-		if (cs_gpio < 0 && mxc_platform_info)
+		if (!gpio_is_valid(cs_gpio) && mxc_platform_info)
 			cs_gpio = mxc_platform_info->chipselect[i];
 
 		spi_imx->chipselect[i] = cs_gpio;
-		if (cs_gpio < 0)
+		if (!gpio_is_valid(cs_gpio))
 			continue;
 
 		ret = gpio_request(spi_imx->chipselect[i], DRIVER_NAME);
@@ -848,12 +846,6 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 		goto out_iounmap;
 	}
 
-	pinctrl = devm_pinctrl_get_select_default(&pdev->dev);
-	if (IS_ERR(pinctrl)) {
-		ret = PTR_ERR(pinctrl);
-		goto out_free_irq;
-	}
-
 	spi_imx->clk_ipg = devm_clk_get(&pdev->dev, "ipg");
 	if (IS_ERR(spi_imx->clk_ipg)) {
 		ret = PTR_ERR(spi_imx->clk_ipg);
@@ -897,16 +889,15 @@ out_release_mem:
 	release_mem_region(res->start, resource_size(res));
 out_gpio_free:
 	while (--i >= 0) {
-		if (spi_imx->chipselect[i] >= 0)
+		if (gpio_is_valid(spi_imx->chipselect[i]))
 			gpio_free(spi_imx->chipselect[i]);
 	}
 	spi_master_put(master);
 	kfree(master);
-	platform_set_drvdata(pdev, NULL);
 	return ret;
 }
 
-static int __devexit spi_imx_remove(struct platform_device *pdev)
+static int spi_imx_remove(struct platform_device *pdev)
 {
 	struct spi_master *master = platform_get_drvdata(pdev);
 	struct resource *res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -922,14 +913,12 @@ static int __devexit spi_imx_remove(struct platform_device *pdev)
 	iounmap(spi_imx->base);
 
 	for (i = 0; i < master->num_chipselect; i++)
-		if (spi_imx->chipselect[i] >= 0)
+		if (gpio_is_valid(spi_imx->chipselect[i]))
 			gpio_free(spi_imx->chipselect[i]);
 
 	spi_master_put(master);
 
 	release_mem_region(res->start, resource_size(res));
-
-	platform_set_drvdata(pdev, NULL);
 
 	return 0;
 }
@@ -942,10 +931,11 @@ static struct platform_driver spi_imx_driver = {
 		   },
 	.id_table = spi_imx_devtype,
 	.probe = spi_imx_probe,
-	.remove = __devexit_p(spi_imx_remove),
+	.remove = spi_imx_remove,
 };
 module_platform_driver(spi_imx_driver);
 
 MODULE_DESCRIPTION("SPI Master Controller driver");
 MODULE_AUTHOR("Sascha Hauer, Pengutronix");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:" DRIVER_NAME);

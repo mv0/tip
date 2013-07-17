@@ -115,7 +115,7 @@ static const struct dmi_system_id dell_device_table[] __initconst = {
 };
 MODULE_DEVICE_TABLE(dmi, dell_device_table);
 
-static struct dmi_system_id __devinitdata dell_quirks[] = {
+static struct dmi_system_id dell_quirks[] = {
 	{
 		.callback = dmi_matched,
 		.ident = "Dell Vostro V130",
@@ -206,6 +206,60 @@ static struct dmi_system_id __devinitdata dell_quirks[] = {
 		},
 		.driver_data = &quirk_dell_vostro_v130,
 	},
+	{
+		.callback = dmi_matched,
+		.ident = "Dell Inspiron 5420",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Inspiron 5420"),
+		},
+		.driver_data = &quirk_dell_vostro_v130,
+	},
+	{
+		.callback = dmi_matched,
+		.ident = "Dell Inspiron 5520",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Inspiron 5520"),
+		},
+		.driver_data = &quirk_dell_vostro_v130,
+	},
+	{
+		.callback = dmi_matched,
+		.ident = "Dell Inspiron 5720",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Inspiron 5720"),
+		},
+		.driver_data = &quirk_dell_vostro_v130,
+	},
+	{
+		.callback = dmi_matched,
+		.ident = "Dell Inspiron 7420",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Inspiron 7420"),
+		},
+		.driver_data = &quirk_dell_vostro_v130,
+	},
+	{
+		.callback = dmi_matched,
+		.ident = "Dell Inspiron 7520",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Inspiron 7520"),
+		},
+		.driver_data = &quirk_dell_vostro_v130,
+	},
+	{
+		.callback = dmi_matched,
+		.ident = "Dell Inspiron 7720",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Inspiron 7720"),
+		},
+		.driver_data = &quirk_dell_vostro_v130,
+	},
 	{ }
 };
 
@@ -230,6 +284,7 @@ static void __init parse_da_table(const struct dmi_header *dm)
 {
 	/* Final token is a terminator, so we don't want to copy it */
 	int tokens = (dm->length-11)/sizeof(struct calling_interface_token)-1;
+	struct calling_interface_token *new_da_tokens;
 	struct calling_interface_structure *table =
 		container_of(dm, struct calling_interface_structure, header);
 
@@ -242,12 +297,13 @@ static void __init parse_da_table(const struct dmi_header *dm)
 	da_command_address = table->cmdIOAddress;
 	da_command_code = table->cmdIOCode;
 
-	da_tokens = krealloc(da_tokens, (da_num_tokens + tokens) *
-			     sizeof(struct calling_interface_token),
-			     GFP_KERNEL);
+	new_da_tokens = krealloc(da_tokens, (da_num_tokens + tokens) *
+				 sizeof(struct calling_interface_token),
+				 GFP_KERNEL);
 
-	if (!da_tokens)
+	if (!new_da_tokens)
 		return;
+	da_tokens = new_da_tokens;
 
 	memcpy(da_tokens+da_num_tokens, table->tokens,
 	       sizeof(struct calling_interface_token) * tokens);
@@ -449,7 +505,7 @@ static struct led_classdev touchpad_led = {
 	.flags = LED_CORE_SUSPENDRESUME,
 };
 
-static int __devinit touchpad_led_init(struct device *dev)
+static int touchpad_led_init(struct device *dev)
 {
 	return led_classdev_register(dev, &touchpad_led);
 }
@@ -495,9 +551,10 @@ static int __init dell_init(void)
 	 * is passed to SMI handler.
 	 */
 	bufferpage = alloc_page(GFP_KERNEL | GFP_DMA32);
-
-	if (!bufferpage)
+	if (!bufferpage) {
+		ret = -ENOMEM;
 		goto fail_buffer;
+	}
 	buffer = page_address(bufferpage);
 
 	if (quirks && quirks->touchpad_led)
