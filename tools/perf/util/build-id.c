@@ -31,6 +31,16 @@ int build_id__mark_dso_hit(struct perf_tool *tool __maybe_unused,
 			event->header.type);
 		return -1;
 	}
+	/*
+	 * When recording guest actions, the kernel mappings
+	 * are not created, so create them before trying
+	 * to commit build-ids.
+	 */
+	if (cpumode == PERF_RECORD_MISC_GUEST_KERNEL &&
+	    machine->pid != DEFAULT_GUEST_KERNEL_ID &&
+	    machine->vmlinux_maps[MAP__FUNCTION] == NULL)
+		machine__create_kernel_maps(machine);
+
 
 	thread__find_addr_map(thread, machine, cpumode, MAP__FUNCTION,
 			      event->ip.ip, &al);

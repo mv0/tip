@@ -693,9 +693,14 @@ int perf_event__preprocess_sample(const union perf_event *event,
 	 * This should have happened earlier, when we processed the kernel MMAP
 	 * events, but for older perf.data files there was no such thing, so do
 	 * it now.
+	 *
+	 * Also, create the maps when recording was done using 'perf kvm',
+	 * for non default machines.
 	 */
-	if (cpumode == PERF_RECORD_MISC_KERNEL &&
-	    machine->vmlinux_maps[MAP__FUNCTION] == NULL)
+	if ((cpumode == PERF_RECORD_MISC_KERNEL ||
+	    (cpumode == PERF_RECORD_MISC_GUEST_KERNEL &&
+	     machine->pid != DEFAULT_GUEST_KERNEL_ID)) &&
+	     machine->vmlinux_maps[MAP__FUNCTION] == NULL)
 		machine__create_kernel_maps(machine);
 
 	thread__find_addr_map(thread, machine, cpumode, MAP__FUNCTION,
