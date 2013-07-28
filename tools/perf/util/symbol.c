@@ -1069,24 +1069,28 @@ static int dso__load_guest_kernel_sym(struct dso *dso, struct map *map,
 	}
 	machine = map->groups->machine;
 
-	if (machine__is_default_guest(machine)) {
-		/*
-		 * if the user specified a vmlinux filename, use it and only
-		 * it, reporting errors to the user if it cannot be used.
-		 * Or use file guest_kallsyms inputted by user on commandline
-		 */
-		if (symbol_conf.default_guest_vmlinux_name != NULL) {
-			err = dso__load_vmlinux(dso, map,
-				symbol_conf.default_guest_vmlinux_name, filter);
-			goto out_try_fixup;
-		}
+	/*
+	 * if the user specified a vmlinux filename, use it and only
+	 * it, reporting errors to the user if it cannot be used.
+	 * Or use file guest_kallsyms inputted by user on commandline
+	 *
+	 * In order to annotate properly all guests
+	 * (i.e., pid != DEFAULT_GUEST_KERNEL_ID) check first if a guest
+	 * vmlinux has been supplied, otherwise assume a guestmount.
+	 */
+	if (symbol_conf.default_guest_vmlinux_name != NULL) {
+		err = dso__load_vmlinux(dso, map,
+			symbol_conf.default_guest_vmlinux_name, filter);
+		goto out_try_fixup;
 
 		kallsyms_filename = symbol_conf.default_guest_kallsyms;
 		if (!kallsyms_filename)
 			return -1;
-	} else {
+	} else if (symbol_conf.guestmount) {
 		sprintf(path, "%s/proc/kallsyms", machine->root_dir);
 		kallsyms_filename = path;
+	} else {
+		pr_err("Please specify either a guest vmlinux, or a guestmount\n");
 	}
 
 	err = dso__load_kallsyms(dso, kallsyms_filename, map, filter);
