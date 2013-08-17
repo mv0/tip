@@ -178,6 +178,9 @@ int perf_event__synthesize_thread_map(struct perf_tool *tool,
 int perf_event__synthesize_threads(struct perf_tool *tool,
 				   perf_event__handler_t process,
 				   struct machine *machine);
+int perf_event__synthesize_guest_threads(struct perf_tool *tool,
+				   perf_event__handler_t process,
+				   struct machine *machine);
 int perf_event__synthesize_kernel_mmap(struct perf_tool *tool,
 				       perf_event__handler_t process,
 				       struct machine *machine,

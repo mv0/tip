@@ -56,7 +56,55 @@ static pid_t perf_event__get_comm_tgid(pid_t pid, char *comm, size_t len)
 
 	fp = fopen(filename, "r");
 	if (fp == NULL) {
-		pr_debug("couldn't open %s\n", filename);
+		pr_debug("! couldn't open %s\n", filename);
+		return 0;
+	}
+
+	while (!comm[0] || (tgid < 0)) {
+		if (fgets(bf, sizeof(bf), fp) == NULL) {
+			pr_warning("couldn't get COMM and pgid, malformed %s\n",
+				   filename);
+			break;
+		}
+
+		if (memcmp(bf, "Name:", 5) == 0) {
+			char *name = bf + 5;
+			while (*name && isspace(*name))
+				++name;
+			size = strlen(name) - 1;
+			if (size >= len)
+				size = len - 1;
+			memcpy(comm, name, size);
+			comm[size] = '\0';
+
+		} else if (memcmp(bf, "Tgid:", 5) == 0) {
+			char *tgids = bf + 5;
+			while (*tgids && isspace(*tgids))
+				++tgids;
+			tgid = atoi(tgids);
+		}
+	}
+
+	fclose(fp);
+
+	return tgid;
+}
+
+static pid_t perf_event__get_comm_guest_tgid(pid_t pid, char *comm, size_t len, struct machine *machine)
+{
+	char filename[PATH_MAX];
+	char bf[BUFSIZ];
+	FILE *fp;
+	size_t size = 0;
+	pid_t tgid = -1;
+
+	pr_debug("in perf_event__get_comm_guest_tgid()\n");
+
+	snprintf(filename, sizeof(filename), "%s/proc/%d/status", machine->root_dir, pid);
+
+	fp = fopen(filename, "r");
+	if (fp == NULL) {
+		pr_debug("* couldn't open %s\n", filename);
 		return 0;
 	}
 
@@ -104,8 +152,9 @@ static pid_t perf_event__synthesize_comm(struct perf_tool *tool,
 
 	memset(&event->comm, 0, sizeof(event->comm));
 
-	tgid = perf_event__get_comm_tgid(pid, event->comm.comm,
-					 sizeof(event->comm.comm));
+	pr_debug("in perf_event__synthesize_comm()\n");
+	tgid = perf_event__get_comm_tgid(pid, event->comm.comm, sizeof(event->comm.comm));
+
 	if (tgid < 0)
 		goto out;
 
@@ -126,12 +175,11 @@ static pid_t perf_event__synthesize_comm(struct perf_tool *tool,
 
 		goto out;
 	}
-
 	snprintf(filename, sizeof(filename), "/proc/%d/task", pid);
 
 	tasks = opendir(filename);
 	if (tasks == NULL) {
-		pr_debug("couldn't open %s\n", filename);
+		pr_debug("> couldn't open %s\n", filename);
 		return 0;
 	}
 
@@ -165,6 +213,91 @@ out:
 	return tgid;
 }
 
+static pid_t perf_event__synthesize_guest_comm(struct perf_tool *tool,
+					 union perf_event *event, pid_t pid,
+					 int full,
+					 perf_event__handler_t process,
+					 struct machine *machine)
+{
+	char filename[PATH_MAX];
+	size_t size;
+	DIR *tasks;
+	struct dirent dirent, *next;
+	pid_t tgid = -1;
+
+	memset(&event->comm, 0, sizeof(event->comm));
+
+	if (!perf_guest)
+		goto out;
+
+	pr_debug("in perf_event__synthesize_guest_comm()\n");
+
+	tgid = perf_event__get_comm_guest_tgid(pid, event->comm.comm, sizeof(event->comm.comm), machine);
+
+	if (tgid < 0)
+		goto out;
+
+	event->comm.pid = tgid;
+	event->comm.header.type = PERF_RECORD_COMM;
+
+	size = strlen(event->comm.comm) + 1;
+	size = PERF_ALIGN(size, sizeof(u64));
+	memset(event->comm.comm + size, 0, machine->id_hdr_size);
+	event->comm.header.size = (sizeof(event->comm) -
+				(sizeof(event->comm.comm) - size) +
+				machine->id_hdr_size);
+	if (!full) {
+		event->comm.tid = pid;
+
+		if (process(tool, event, &synth_sample, machine) != 0)
+			return -1;
+
+		goto out;
+	}
+	if (machine->pid != DEFAULT_GUEST_KERNEL_ID && machine->pid != HOST_KERNEL_ID) {
+		snprintf(filename, sizeof(filename), "%s/proc/%d/task", machine->root_dir, pid);
+		pr_debug("should open file %s\n", filename);
+	} else {
+		pr_info("not default guest kernel()!\n");
+		goto out;
+	}
+
+	tasks = opendir(filename);
+	if (tasks == NULL) {
+		pr_debug("# couldn't open %s\n", filename);
+		return 0;
+	}
+
+	while (!readdir_r(tasks, &dirent, &next) && next) {
+		char *end;
+		pid = strtol(dirent.d_name, &end, 10);
+		if (*end)
+			continue;
+
+		/* already have tgid; jut want to update the comm */
+		(void) perf_event__get_comm_guest_tgid(pid, event->comm.comm,
+					 sizeof(event->comm.comm), machine);
+
+		size = strlen(event->comm.comm) + 1;
+		size = PERF_ALIGN(size, sizeof(u64));
+		memset(event->comm.comm + size, 0, machine->id_hdr_size);
+		event->comm.header.size = (sizeof(event->comm) -
+					  (sizeof(event->comm.comm) - size) +
+					  machine->id_hdr_size);
+
+		event->comm.tid = pid;
+
+		if (process(tool, event, &synth_sample, machine) != 0) {
+			tgid = -1;
+			break;
+		}
+	}
+
+	closedir(tasks);
+out:
+	return tgid;
+}
+
 static int perf_event__synthesize_mmap_events(struct perf_tool *tool,
 					      union perf_event *event,
 					      pid_t pid, pid_t tgid,
@@ -174,6 +307,8 @@ static int perf_event__synthesize_mmap_events(struct perf_tool *tool,
 	char filename[PATH_MAX];
 	FILE *fp;
 	int rc = 0;
+
+	pr_debug("in perf_event__synthesize_mmap_events()\n");
 
 	snprintf(filename, sizeof(filename), "/proc/%d/maps", pid);
 
@@ -191,6 +326,99 @@ static int perf_event__synthesize_mmap_events(struct perf_tool *tool,
 	 * Just like the kernel, see __perf_event_mmap in kernel/perf_event.c
 	 */
 	event->header.misc = PERF_RECORD_MISC_USER;
+
+	pr_debug("synthesizing for pid %d, tgid = %d\n", pid, tgid);
+
+	while (1) {
+		char bf[BUFSIZ];
+		char prot[5];
+		char execname[PATH_MAX];
+		char anonstr[] = "//anon";
+		size_t size;
+
+		if (fgets(bf, sizeof(bf), fp) == NULL) {
+			break;
+		}
+
+		/* ensure null termination since stack will be reused. */
+		strcpy(execname, "");
+
+		/* 00400000-0040c000 r-xp 00000000 fd:01 41038  /bin/cat */
+		sscanf(bf, "%"PRIx64"-%"PRIx64" %s %"PRIx64" %*x:%*x %*u %s\n",
+		       &event->mmap.start, &event->mmap.len, prot,
+		       &event->mmap.pgoff, execname);
+
+		if (prot[2] != 'x') {
+			continue;
+		}
+
+		if (!strcmp(execname, ""))
+			strcpy(execname, anonstr);
+
+		size = strlen(execname) + 1;
+		memcpy(event->mmap.filename, execname, size);
+		size = PERF_ALIGN(size, sizeof(u64));
+		event->mmap.len -= event->mmap.start;
+		event->mmap.header.size = (sizeof(event->mmap) -
+					   (sizeof(event->mmap.filename) - size));
+		memset(event->mmap.filename + size, 0, machine->id_hdr_size);
+		event->mmap.header.size += machine->id_hdr_size;
+		event->mmap.pid = tgid;
+		event->mmap.tid = pid;
+
+		pr_debug("added for guest user-space"
+			" mmap.filename='%s', tgid=%d, pid=%d\n",
+			event->mmap.filename,
+			event->mmap.pid, event->mmap.tid);
+		if (process(tool, event, &synth_sample, machine) != 0) {
+			rc = -1;
+			break;
+		}
+	}
+
+	fclose(fp);
+	return rc;
+}
+
+static int perf_event__synthesize_mmap_guest_events(struct perf_tool *tool,
+					      union perf_event *event,
+					      pid_t pid, pid_t tgid,
+					      perf_event__handler_t process,
+					      struct machine *machine)
+{
+	char filename[PATH_MAX];
+	FILE *fp;
+	int rc = 0;
+
+	pr_debug("in perf_event__synthesize_mmap_guest_events()\n");
+
+	if (!perf_guest)
+		return -1;
+
+	if (machine->pid != DEFAULT_GUEST_KERNEL_ID && machine->pid != HOST_KERNEL_ID) {
+		pr_debug("got perf_guest %d\n", machine->pid);
+		snprintf(filename, sizeof(filename), "%s/proc/%d/maps", machine->root_dir, pid);
+	} else {
+		pr_info("not default guest kernel()\n");
+		return -1;
+	}
+
+	fp = fopen(filename, "r");
+	if (fp == NULL) {
+		/*
+		 * We raced with a task exiting - just return:
+		 */
+		pr_debug("<< couldn't open %s\n", filename);
+		return -1;
+	}
+
+	event->header.type = PERF_RECORD_MMAP;
+	/*
+	 * Just like the kernel, see __perf_event_mmap in kernel/perf_event.c
+	 */
+	event->header.misc = PERF_RECORD_MISC_GUEST_USER;
+
+	pr_debug("synthesizing for pid %d, tgid = %d\n", pid, tgid);
 
 	while (1) {
 		char bf[BUFSIZ];
@@ -210,22 +438,37 @@ static int perf_event__synthesize_mmap_events(struct perf_tool *tool,
 		       &event->mmap.start, &event->mmap.len, prot,
 		       &event->mmap.pgoff, execname);
 
-		if (prot[2] != 'x')
+		if (prot[2] != 'x') {
 			continue;
+		}
 
 		if (!strcmp(execname, ""))
 			strcpy(execname, anonstr);
 
 		size = strlen(execname) + 1;
-		memcpy(event->mmap.filename, execname, size);
+		if (*execname != '[') {
+			memcpy(event->mmap.filename, machine->root_dir, strlen(machine->root_dir));
+			memcpy(event->mmap.filename + strlen(machine->root_dir), execname, size);
+		} else {
+			memcpy(event->mmap.filename, execname, size);
+		}
+
 		size = PERF_ALIGN(size, sizeof(u64));
 		event->mmap.len -= event->mmap.start;
 		event->mmap.header.size = (sizeof(event->mmap) -
 					   (sizeof(event->mmap.filename) - size));
-		memset(event->mmap.filename + size, 0, machine->id_hdr_size);
+		if (*execname != '[')
+			memset(event->mmap.filename + size + strlen(machine->root_dir), 0, machine->id_hdr_size);
+		else
+			memset(event->mmap.filename + size, 0, machine->id_hdr_size);
+
 		event->mmap.header.size += machine->id_hdr_size;
 		event->mmap.pid = tgid;
 		event->mmap.tid = pid;
+		pr_info("added for guest user-space"
+			" mmap.filename='%s', tgid=%d, pid=%d\n",
+			event->mmap.filename,
+			event->mmap.pid, event->mmap.tid);
 
 		if (process(tool, event, &synth_sample, machine) != 0) {
 			rc = -1;
@@ -306,6 +549,23 @@ static int __event__synthesize_thread(union perf_event *comm_event,
 		return -1;
 	return perf_event__synthesize_mmap_events(tool, mmap_event, pid, tgid,
 						  process, machine);
+}
+
+static int __event__synthesize_guest_thread(union perf_event *comm_event,
+				      union perf_event *mmap_event,
+				      pid_t pid, int full,
+				      perf_event__handler_t process,
+				      struct perf_tool *tool,
+				      struct machine *machine)
+{
+	pid_t tgid = perf_event__synthesize_guest_comm(tool, comm_event, pid, full, 
+						 process, machine);
+	if (tgid == -1)
+		return -1;
+
+	return perf_event__synthesize_mmap_guest_events(tool, mmap_event, pid, tgid,
+						     process, machine);
+
 }
 
 int perf_event__synthesize_thread_map(struct perf_tool *tool,
@@ -398,6 +658,64 @@ int perf_event__synthesize_threads(struct perf_tool *tool,
  		 * one thread couldn't be synthesized.
  		 */
 		__event__synthesize_thread(comm_event, mmap_event, pid, 1,
+					   process, tool, machine);
+	}
+
+	err = 0;
+	closedir(proc);
+out_free_mmap:
+	free(mmap_event);
+out_free_comm:
+	free(comm_event);
+out:
+	return err;
+}
+
+int perf_event__synthesize_guest_threads(struct perf_tool *tool,
+				   perf_event__handler_t process,
+				   struct machine *machine)
+{
+	DIR *proc;
+	char procpath[PATH_MAX];
+	struct dirent dirent, *next;
+	union perf_event *comm_event, *mmap_event;
+	int err = -1;
+
+	if (!perf_guest)
+		return err;
+
+	if (machine->pid != DEFAULT_GUEST_KERNEL_ID && machine->pid != HOST_KERNEL_ID) {
+		sprintf(procpath, "%s/proc", machine->root_dir);
+		pr_info("got guestmount opening %s\n", procpath);
+	} else {
+		pr_info("Must supply a guestmount\n");
+		return err;
+	}
+
+	comm_event = malloc(sizeof(comm_event->comm) + machine->id_hdr_size);
+	if (comm_event == NULL)
+		goto out;
+
+	mmap_event = malloc(sizeof(mmap_event->mmap) + machine->id_hdr_size);
+	if (mmap_event == NULL)
+		goto out_free_comm;
+
+
+	proc = opendir(procpath);
+	if (proc == NULL)
+		goto out_free_mmap;
+
+	while (!readdir_r(proc, &dirent, &next) && next) {
+		char *end;
+		pid_t pid = strtol(dirent.d_name, &end, 10);
+
+		if (*end) /* only interested in proper numerical dirents */
+			continue;
+		/*
+ 		 * We may race with exiting thread, so don't stop just because
+ 		 * one thread couldn't be synthesized.
+ 		 */
+		__event__synthesize_guest_thread(comm_event, mmap_event, pid, 1,
 					   process, tool, machine);
 	}
 
@@ -606,6 +924,8 @@ void thread__find_addr_map(struct thread *self,
 		return;
 	}
 
+	pr_debug("** looking for addr 0x%lx\n", al->addr);
+
 	if (cpumode == PERF_RECORD_MISC_KERNEL && perf_host) {
 		al->level = 'k';
 		mg = &machine->kmaps;
@@ -615,16 +935,13 @@ void thread__find_addr_map(struct thread *self,
 		al->level = 'g';
 		mg = &machine->kmaps;
 	} else {
-		/*
-		 * 'u' means guest os user space.
-		 * TODO: We don't support guest user space. Might support late.
-		 */
-		if (cpumode == PERF_RECORD_MISC_GUEST_USER && perf_guest)
+		if (cpumode == PERF_RECORD_MISC_GUEST_USER && perf_guest) {
 			al->level = 'u';
-		else
+			pr_debug("got record misc guest user\n");
+		} else {
+			pr_debug("got hypervisor\n");
 			al->level = 'H';
-		al->map = NULL;
-
+		}
 		if ((cpumode == PERF_RECORD_MISC_GUEST_USER ||
 			cpumode == PERF_RECORD_MISC_GUEST_KERNEL) &&
 			!perf_guest)
@@ -633,8 +950,6 @@ void thread__find_addr_map(struct thread *self,
 			cpumode == PERF_RECORD_MISC_KERNEL) &&
 			!perf_host)
 			al->filtered = true;
-
-		return;
 	}
 try_again:
 	al->map = map_groups__find(mg, type, al->addr);
@@ -648,14 +963,19 @@ try_again:
 		 * "[vdso]" dso, but for now lets use the old trick of looking
 		 * in the whole kernel symbol list.
 		 */
+		pr_debug("GOT empty al->mmap()\n");
 		if ((long long)al->addr < 0 &&
-		    cpumode == PERF_RECORD_MISC_USER &&
-		    machine && mg != &machine->kmaps) {
+		    (cpumode == PERF_RECORD_MISC_USER ||
+		     cpumode == PERF_RECORD_MISC_GUEST_USER) &&
+		     machine && mg != &machine->kmaps) {
+			pr_info("got negative addr\n");
 			mg = &machine->kmaps;
 			goto try_again;
 		}
-	} else
+	} else {
+		pr_debug("GOT valid al->mmap()\n");
 		al->addr = al->map->map_ip(al->map, al->addr);
+	}
 }
 
 void thread__find_addr_location(struct thread *thread, struct machine *machine,
@@ -677,16 +997,11 @@ int perf_event__preprocess_sample(const union perf_event *event,
 				  symbol_filter_t filter)
 {
 	u8 cpumode = event->header.misc & PERF_RECORD_MISC_CPUMODE_MASK;
-	struct thread *thread = machine__findnew_thread(machine, event->ip.pid);
+	struct thread *thread = NULL;
 
-	if (thread == NULL)
-		return -1;
-
-	if (symbol_conf.comm_list &&
-	    !strlist__has_entry(symbol_conf.comm_list, thread->comm))
-		goto out_filtered;
-
-	dump_printf(" ... thread: %s:%d\n", thread->comm, thread->tid);
+	pr_debug("in perf_event__preprocess_sample\n");
+	pr_debug("\t machine->pid %d, event->ip.pid %d, event->mmap.pid %d\n",
+		machine->pid, event->ip.pid, event->mmap.pid);
 	/*
 	 * Have we already created the kernel maps for this machine?
 	 *
@@ -703,8 +1018,48 @@ int perf_event__preprocess_sample(const union perf_event *event,
 	     machine->vmlinux_maps[MAP__FUNCTION] == NULL)
 		machine__create_kernel_maps(machine);
 
+	if (perf_guest && cpumode == PERF_RECORD_MISC_GUEST_USER) {
+
+		struct rb_root *rthreads = &machine->threads;
+		struct rb_node *node = rb_first(rthreads);
+		struct thread *thrd = NULL;
+
+		pr_info("got perf_guest..., looping threads\n");
+		while (node) {
+
+			thrd = rb_entry(node, struct thread, rb_node);
+			pr_info("looking at thread %s, pid %d\n", thrd->comm, thrd->tid);
+
+			if (thread__find_map(thrd, MAP__FUNCTION, event->ip.ip)) {
+				pr_info("found thread %s (%d), responsible for 0x%lx\n",
+					thrd->comm, thrd->tid, event->ip.ip);
+				thread = thrd;
+				break;
+			}
+			node = rb_next(node);
+		}
+	} else {
+		thread = machine__findnew_thread(machine, event->ip.pid);
+	}
+
+	if (thread == NULL) {
+		pr_info("invalid thread for pid %d\n",
+			event->ip.pid);
+		return -1;
+	}
+
+	if (symbol_conf.comm_list &&
+	    !strlist__has_entry(symbol_conf.comm_list, thread->comm)) {
+		pr_info("no strlist_has_entry for thread %s\n",
+			thread->comm);
+		goto out_filtered;
+	}
+
+	dump_printf(" ... thread: %s:%d\n", thread->comm, thread->tid);
+
 	thread__find_addr_map(thread, machine, cpumode, MAP__FUNCTION,
 			      event->ip.ip, al);
+
 	dump_printf(" ...... dso: %s\n",
 		    al->map ? al->map->dso->long_name :
 			al->level == 'H' ? "[hypervisor]" : "<not found>");

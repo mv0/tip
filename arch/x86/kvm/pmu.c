@@ -176,6 +176,7 @@ static void reprogram_counter(struct kvm_pmc *pmc, u32 type,
 
 	attr.sample_period = (-pmc->counter) & pmc_bitmask(pmc);
 
+	LOG("in reprogram_counter() calling create_kernel_counter()\n");
 	event = perf_event_create_kernel_counter(&attr, -1, current,
 						 intr ? kvm_perf_overflow_intr :
 						 kvm_perf_overflow, pmc);

@@ -29,9 +29,14 @@ int machine__init(struct machine *machine, const char *root_dir, pid_t pid)
 	if (machine->root_dir == NULL)
 		return -ENOMEM;
 
+	pr_debug("in machine__init with root_dir '%s' and pid %d\n",
+			machine->root_dir, pid);
+
 	if (pid != HOST_KERNEL_ID) {
 		struct thread *thread = machine__findnew_thread(machine, pid);
 		char comm[64];
+
+		pr_debug("machine is not host...\n");
 
 		if (thread == NULL)
 			return -ENOMEM;
@@ -140,6 +145,7 @@ struct machine *machines__find(struct machines *machines, pid_t pid)
 	struct machine *machine;
 	struct machine *default_machine = NULL;
 
+	pr_debug("in machine__find for pid %d\n", pid);
 	if (pid == HOST_KERNEL_ID)
 		return &machines->host;
 
@@ -182,6 +188,7 @@ struct machine *machines__findnew(struct machines *machines, pid_t pid)
 				pr_err("Can't access file %s\n", path);
 				strlist__add(seen, path);
 			}
+			pr_debug("Invalidating machine with pid %d\n", pid);
 			machine = NULL;
 			goto out;
 		}
@@ -193,13 +200,30 @@ out:
 	return machine;
 }
 
+struct machine *machines__find_nondefaultguest(struct machines *machines)
+{
+	struct rb_node *nd = rb_first(&machines->guests);
+
+	do {
+		struct machine *pos = rb_entry(nd, struct machine, rb_node);
+		if (pos->pid != DEFAULT_GUEST_KERNEL_ID && 
+		    pos->pid != HOST_KERNEL_ID) {
+			return pos;
+		}
+	} while (nd && (nd = rb_next(nd)));
+
+	return NULL;
+}
+
 void machines__process_guests(struct machines *machines,
 			      machine__process_t process, void *data)
 {
 	struct rb_node *nd;
 
+	pr_debug("in machines__process_guests()\n");
 	for (nd = rb_first(&machines->guests); nd; nd = rb_next(nd)) {
 		struct machine *pos = rb_entry(nd, struct machine, rb_node);
+		pr_debug("processing machine with pid %d\n", pos->pid);
 		process(pos, data);
 	}
 }
@@ -240,6 +264,8 @@ static struct thread *__machine__findnew_thread(struct machine *machine, pid_t t
 	struct rb_node *parent = NULL;
 	struct thread *th;
 
+	pr_debug("in __machine__findnew_thread "
+		"with tid %d and create %d\n", tid, create);
 	/*
 	 * Front-end cache - TID lookups come in blocks,
 	 * so most of the time we dont have to look up
@@ -541,6 +567,7 @@ int machines__create_guest_kernel_maps(struct machines *machines)
 	if (symbol_conf.default_guest_vmlinux_name ||
 	    symbol_conf.default_guest_modules ||
 	    symbol_conf.default_guest_kallsyms) {
+		pr_debug("creating default machine...\n");
 		machines__create_kernel_maps(machines, DEFAULT_GUEST_KERNEL_ID);
 	}
 
@@ -958,34 +985,47 @@ int machine__process_mmap_event(struct machine *machine, union perf_event *event
 	enum map_type type;
 	int ret = 0;
 
+	pr_debug("in machine__process_mmap_event() for pid %d\n", event->mmap.pid);
+
 	if (dump_trace)
 		perf_event__fprintf_mmap(event, stdout);
 
 	if (cpumode == PERF_RECORD_MISC_GUEST_KERNEL ||
 	    cpumode == PERF_RECORD_MISC_KERNEL) {
+		pr_debug("\t found cpumode KERNEL|GUEST_KERNEL\n");
 		ret = machine__process_kernel_mmap_event(machine, event);
 		if (ret < 0)
 			goto out_problem;
 		return 0;
 	}
 
+	pr_debug("\t >>>>>>>> looking for thread %d <<<<<<<<<<<<<<<<<<<\n", event->mmap.pid);
 	thread = machine__findnew_thread(machine, event->mmap.pid);
-	if (thread == NULL)
+	if (thread == NULL) {
+		pr_info("could not find responsible for %d\n", event->mmap.pid);
 		goto out_problem;
+	}
 
 	if (event->header.misc & PERF_RECORD_MISC_MMAP_DATA)
 		type = MAP__VARIABLE;
 	else
 		type = MAP__FUNCTION;
 
+	pr_debug("should mmap, start: %lx, pid: %d "
+		"filename: %s\n", event->mmap.start,
+		event->mmap.pid, event->mmap.filename);
+
 	map = map__new(&machine->user_dsos, event->mmap.start,
 			event->mmap.len, event->mmap.pgoff,
 			event->mmap.pid, event->mmap.filename,
 			type);
 
-	if (map == NULL)
+	if (map == NULL) {
+		pr_info("failed to map user_dsos\n");
 		goto out_problem;
+	}
 
+	pr_debug("inserting thread %d\n", thread->tid);
 	thread__insert_map(thread, map);
 	return 0;
 
@@ -1192,6 +1232,12 @@ static int machine__resolve_callchain_sample(struct machine *machine,
 			case PERF_CONTEXT_USER:
 				cpumode = PERF_RECORD_MISC_USER;
 				break;
+			case PERF_CONTEXT_GUEST_KERNEL:
+				cpumode = PERF_RECORD_MISC_GUEST_KERNEL;
+				break;
+			case PERF_CONTEXT_GUEST_USER:
+				cpumode = PERF_RECORD_MISC_GUEST_USER;
+				break;
 			default:
 				pr_debug("invalid callchain context: "
 					 "%"PRId64"\n", (s64) ip);
@@ -1206,6 +1252,7 @@ static int machine__resolve_callchain_sample(struct machine *machine,
 		}
 
 		al.filtered = false;
+
 		thread__find_addr_location(thread, machine, cpumode,
 					   MAP__FUNCTION, ip, &al, NULL);
 		if (al.sym != NULL) {
@@ -1221,6 +1268,8 @@ static int machine__resolve_callchain_sample(struct machine *machine,
 			}
 			if (!symbol_conf.use_callchain)
 				break;
+		} else {
+			pr_info("unable to find symbol\n");
 		}
 
 		err = callchain_cursor_append(&callchain_cursor,

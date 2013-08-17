@@ -850,6 +850,7 @@ retry_sample_id:
 
 			group_fd = get_group_fd(evsel, cpu, thread);
 
+			fprintf(stderr, "# cpu %d, pid %d\n", cpu, pid);
 			FD(evsel, cpu, thread) = sys_perf_event_open(&evsel->attr,
 								     pid,
 								     cpus->map[cpu],

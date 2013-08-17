@@ -64,6 +64,8 @@
 #include <asm/pvclock.h>
 #include <asm/div64.h>
 
+#include <linux/kvm_trace.h>
+
 #define MAX_IO_MSRS 256
 #define KVM_MAX_MCE_BANKS 32
 #define KVM_MCE_CAP_SUPPORTED (MCG_CTL_P | MCG_SER_P)
@@ -3574,6 +3576,32 @@ int kvm_vm_ioctl_irq_line(struct kvm *kvm, struct kvm_irq_level *irq_event,
 	return 0;
 }
 
+
+struct perf_event_fd {
+	int		 fd;
+	struct list_head list;
+	spinlock_t	 lock;
+};
+
+LIST_HEAD(perf_fds);
+
+static DEFINE_MUTEX(perf_event_fd_lock);
+
+static struct perf_event_fd *perf_event_init_fd(int fd)
+{
+	struct perf_event_fd *pfd;
+
+	pfd = kzalloc(sizeof(*pfd), GFP_KERNEL);
+	if (!pfd)
+		return NULL;
+
+	pfd->fd = fd;
+	INIT_LIST_HEAD(&pfd->list);
+	spin_lock_init(&pfd->lock);
+
+	return pfd;
+}
+
 long kvm_arch_vm_ioctl(struct file *filp,
 		       unsigned int ioctl, unsigned long arg)
 {
@@ -3822,6 +3850,135 @@ long kvm_arch_vm_ioctl(struct file *filp,
 		r = -EFAULT;
 		if (copy_to_user(argp, &user_ns, sizeof(user_ns)))
 			goto out;
+		r = 0;
+		break;
+	}
+	case KVM_START_SYSCALL_TRACE: {
+		LOG("start syscall trace\n");
+		break;
+	}
+	case KVM_STOP_SYSCALL_TRACE: {
+		LOG("stop syscall trace\n");
+		break;
+	}
+	case KVM_START_USERSPACE_TRACE: {
+		struct trace_userspace userspace_trace;
+		struct perf_event_fd *pfd;
+		r = -EFAULT;
+
+		LOG("setting user-space tracing..\n");
+
+		if (copy_from_user(&userspace_trace,
+				   argp, 
+				   sizeof(struct trace_userspace))) {
+			LOG("failed to get data userspace data\n");
+			goto out;
+		}
+
+		r = sys_perf_event_open(userspace_trace.event_attr,
+					userspace_trace.pid,
+					userspace_trace.cpu,
+					userspace_trace.group_fd,
+					userspace_trace.flags);
+
+		if (r < 0) {
+			LOG("failed to get fd...\n");
+			break;
+		}
+		pfd = perf_event_init_fd(r);
+
+		spin_lock(&pfd->lock);
+		list_add_tail(&pfd->list, &perf_fds);
+		spin_unlock(&pfd->lock);
+
+		LOG("got event fd %d\n", pfd->fd);
+
+		LOG("starting user-space tracing..\n");
+
+		LOG("event attr\n");
+		LOG("type: %u, size: %u, config: %llx, exclude_user: %x, "
+		    "exclude_kernel: %x, exclude_hv: %x\n",
+		    userspace_trace.event_attr->type,
+		    userspace_trace.event_attr->size,
+		    userspace_trace.event_attr->config,
+		    userspace_trace.event_attr->exclude_user,
+		    userspace_trace.event_attr->exclude_kernel,
+		    userspace_trace.event_attr->exclude_hv);
+
+		LOG("sample_type: %llx\n", 
+		    userspace_trace.event_attr->sample_type);
+
+		LOG("task: %x, precise_ip: %x, sample_id_all: %x, "
+		    "exclude_host: %x, exclude_guest: %x, "
+		    "exclude_callchain_user: %x, exclude_callchain_kernel: %x\n",
+		    userspace_trace.event_attr->task,
+		    userspace_trace.event_attr->precise_ip,
+		    userspace_trace.event_attr->sample_id_all,
+		    userspace_trace.event_attr->exclude_host,
+		    userspace_trace.event_attr->exclude_guest,
+		    userspace_trace.event_attr->exclude_callchain_user,
+		    userspace_trace.event_attr->exclude_callchain_kernel);
+
+
+		LOG("pid %d, cpu %d, flags 0x%lx\n",
+			userspace_trace.pid,
+			userspace_trace.cpu,
+			userspace_trace.flags);
+
+		break;
+	}
+	case KVM_USERSPACE_TRACE_GET_FDS: {
+		struct perf_event_fd *pos;
+		int *fds;
+		int cnt;
+		r = -EFAULT;
+
+		LOG("getting fds ...\n");
+		cnt = 0;
+		list_for_each_entry(pos, &perf_fds, list) {
+			cnt++;
+		}
+
+		LOG("got %d fds ...\n", cnt);
+
+		fds = kzalloc(sizeof(int) * cnt, GFP_KERNEL);
+
+		cnt = 0;
+		list_for_each_entry(pos, &perf_fds, list) {
+			fds[cnt++] = pos->fd;
+			fds++;
+		}
+
+		LOG("copying data to user...\n");
+
+		if (copy_to_user(argp, &fds, (sizeof(int) * cnt))) {
+			goto out;
+		}
+		LOG("done copying data to user\n");
+
+		r = 0;
+		kfree(fds);
+		break;
+	}
+	case KVM_STOP_USERSPACE_TRACE: {
+		struct perf_event_fd *pos, *tmp;
+		int fd;
+		r = -EFAULT;
+
+		mutex_lock(&perf_event_fd_lock);
+		list_for_each_entry_safe(pos, tmp, &perf_fds, list) {
+
+			if (copy_from_user(argp, &fd, sizeof(int)))
+				goto out;
+
+			if (fd == pos->fd) {
+				LOG("found %d fd to remove from list\n", fd);
+				list_del(&pos->list);
+				kfree(pos);
+				break;
+			}
+		}
+		mutex_unlock(&perf_event_fd_lock);
 		r = 0;
 		break;
 	}
@@ -5251,11 +5408,327 @@ static unsigned long kvm_get_guest_ip(void)
 
 	return ip;
 }
+/*
+
+struct kvm_segment {
+	__u64 base;
+	__u32 limit;
+	__u16 selector;
+	__u8  type;
+	__u8  present, dpl, db, s, l, g, avl;
+	__u8  unusable;
+	__u8  padding;
+};
+*/
+
+static void print_segment(const char *seg_name, struct kvm_segment *seg)
+{
+	LOG("segment %s, base: 0x%llx, limit: 0x%x, "
+	    "selector: 0x%u, type: 0x%u, present: 0x%u, dpl: 0x%u\n",
+	    seg_name, seg->base, seg->limit, 
+	    seg->selector, seg->type, seg->present, seg->dpl);
+}
+
+static void get_and_print_segments(struct kvm_vcpu *vcpu)
+{
+	struct kvm_segment seg;
+
+	kvm_get_segment(vcpu, &seg, VCPU_SREG_CS);
+	print_segment("cs", &seg);
+	kvm_get_segment(vcpu, &seg, VCPU_SREG_SS);
+	print_segment("ss", &seg);
+	kvm_get_segment(vcpu, &seg, VCPU_SREG_GS);
+	print_segment("gs", &seg);
+	kvm_get_segment(vcpu, &seg, VCPU_SREG_FS);
+	print_segment("fs", &seg);
+}
+
+static __u64 translate_to_guest(struct kvm_vcpu *vcpu, void *linear_address)
+{
+	int r;
+	struct kvm_translation trans;
+	__u64 phys_address;
+
+	trans.linear_address = *(__u64 *) &linear_address;
+	LOG("linear addres %llx\n", 
+			*(__u64 *) &linear_address);
+
+	r = kvm_arch_vcpu_ioctl_translate(vcpu, &trans);
+	phys_address = trans.physical_address;
+
+	if (phys_address == 0UL || phys_address == -1UL) {
+		return -1UL;
+	}
+
+	LOG("physical addr @ 0x%llx", phys_address);
+
+	return phys_address;
+}
+
+static void translate_and_read(struct kvm_vcpu *vcpu, void *linear_address, 
+			       void *data, size_t len)
+{
+	int r;
+	__u64 phys_address = translate_to_guest(vcpu, linear_address);
+
+	if (phys_address == -1UL) {
+		LOG("failed to get phys_address!\n");
+		return;
+	}
+
+	r = kvm_read_guest_atomic(vcpu->kvm, phys_address, data, len);
+	if (r < 0 || !data) {
+		LOG("failed to kvm_read_guest_atomic!\n");
+		return;
+	}
+
+}
+
+#define __INIT_TASK_ADDR	&init_task
+static void kvm_get_guest_current(void)
+{
+	struct kvm_vcpu *vcpu = __this_cpu_read(current_vcpu);
+
+	struct task_struct *init_tsk, *ntsk, *ftask;
+	struct task_struct *ntsk_vaddr_off;
+
+	void *init_tsk_addr = __INIT_TASK_ADDR;
+	void *vaddr_pgd, *vaddr_mm_struct;
+
+	struct mm_struct *imm;
+	pgd_t mpgd;
+
+	size_t tasks_off = (size_t) &((struct task_struct *) 0)->tasks;
+
+	u64 kpgd;
+	int mode;
+
+	init_tsk = ntsk = ntsk_vaddr_off = ftask = NULL;
+	if (!vcpu) {
+		LOG("### not in guest\n");
+		return;
+	}
+
+	kpgd = kvm_read_cr3(vcpu);
+	LOG("cr3 @ %llx\n", kpgd);
+	get_and_print_segments(vcpu);
+
+	mode = kvm_x86_ops->get_cpl(vcpu);
+	if (mode != 3) {
+		LOG("### not in user-space\n");
+		return;
+	}
+
+	LOG("init_task vaddr @ 0x%p\n", init_tsk_addr);
+
+	init_tsk = kzalloc(sizeof(*init_tsk), GFP_KERNEL | GFP_ATOMIC);
+	if (!init_tsk) {
+		return;
+	}
+
+	translate_and_read(vcpu, init_tsk_addr, init_tsk, sizeof(*init_tsk));
+	LOG("init_tsk @ %p\n", init_tsk);
+
+	ntsk_vaddr_off = ((struct task_struct *) init_tsk->tasks.next) - tasks_off;
+	if (!ntsk_vaddr_off) {
+		LOG("failed to get ntsk\n");
+		goto out;
+	}
+	LOG("ntsk_off at @ %p\n", ntsk_vaddr_off);
+
+	ntsk = kzalloc(sizeof(*ntsk), GFP_KERNEL | GFP_ATOMIC);
+	if (!ntsk) {
+		goto out;
+	}
+	translate_and_read(vcpu, (void *) ntsk_vaddr_off, ntsk, sizeof(*ntsk));
+
+	if (!ntsk) {
+		LOG("failed to get ntsk\n");
+		goto out2;
+	}
+	LOG("ntsk struct @ %p\n", ntsk);
+	if (!ntsk->mm) {
+		LOG("failed to get ntsk->mm %p\n", ntsk->mm);
+		goto out2;
+	}
+	LOG("ntsk mm struct @ %p\n", ntsk->mm);
+
+
+	imm = kzalloc(sizeof(struct mm_struct), GFP_KERNEL | GFP_ATOMIC);
+	if (!imm) {
+		goto out2;
+	}
+
+	vaddr_mm_struct = ntsk->mm;
+	translate_and_read(vcpu, (void *) vaddr_mm_struct, imm, sizeof(struct mm_struct));
+
+	if (!imm->pgd) {
+		LOG("failed to get pgd for ntsk->mm->pgd\n");
+		goto out3;
+	}
+
+	vaddr_pgd = imm->pgd;
+	translate_and_read(vcpu, vaddr_pgd, &mpgd, sizeof(pgd_t));
+
+	if (!mpgd.pgd) {
+		LOG("failed to get mpgd\n");
+		goto out3;
+	}
+	LOG("initial pgd %lx\n", mpgd.pgd);
+
+#if 0
+	do {
+		ntsk = (struct task_struct *) ntsk;
+	
+		if (mpgd.pgd == kpgd) {
+			ftask = ntsk;
+			break;
+		}
+
+		ntsk_vaddr_off = ((struct task_struct *) ntsk->tasks.next) - tasks_off;
+
+
+		memset(ntsk, 0, sizeof(*ntsk));
+
+		translate_and_read(vcpu, ntsk_vaddr_off, ntsk, sizeof(*ntsk));
+		if (!ntsk || !ntsk->mm) {
+			LOG("failed to get ntsk or ntsk->mm\n");
+			break;
+		}
+		LOG("ntsk mm struct @ %p\n", ntsk->mm);
+
+		vaddr_mm_struct = ntsk->mm;
+
+		memset(imm, 0, sizeof(struct mm_struct));
+		translate_and_read(vcpu, vaddr_mm_struct, imm, sizeof(struct mm_struct));
+
+		if (!imm->pgd) {
+			LOG("failed to get pgd for ntsk_a\n");
+			break;
+		}
+
+		vaddr_pgd = imm->pgd;
+		translate_and_read(vcpu, vaddr_pgd, &mpgd, sizeof(pgd_t));
+
+		if (!mpgd.pgd) {
+			LOG("failed to get mpgd\n");
+			break;
+		}
+
+
+	} while (ntsk != init_tsk);
+#endif
+
+
+	if (!ftask) {
+		LOG("failed to get desired task\n");
+		goto out3;
+	}
+	LOG("found task with pid %d\n", ftask->pid);
+out3:
+	if (imm)
+		kfree(imm);
+out2:
+	if (ntsk)
+		kfree(ntsk);
+out:
+	if (init_tsk)
+		kfree(init_tsk);
+}
+/*
+	kvm_read_guest_virt_helper(addr, val, bytes, vcpu, 0, exception);
+*/
+
+static void kvm_get_guest_current2(void)
+{
+	struct kvm_vcpu *vcpu = __this_cpu_read(current_vcpu);
+	struct x86_exception e;
+
+	size_t tasks_off = (size_t) &((struct task_struct *) 0)->tasks;
+	void *init_tsk_addr = __INIT_TASK_ADDR + tasks_off;
+	gva_t init_tsk_vaddr = *(gva_t *) &init_tsk_addr;
+
+	/* head list */
+	struct task_struct *init_tsk;
+
+	u64 kpgd;
+	int mode;
+
+	if (!vcpu) {
+		LOG("### not in guest\n");
+		return;
+	}
+
+	kpgd = kvm_read_cr3(vcpu);
+	LOG("cr3 @ %llx\n", kpgd);
+	get_and_print_segments(vcpu);
+
+	mode = kvm_x86_ops->get_cpl(vcpu);
+	if (mode != 3) {
+		LOG("### not in user-space\n");
+		return;
+	}
+
+	LOG("init_task vaddr @ 0x%lx\n", init_tsk_vaddr);
+	init_tsk = kzalloc(sizeof(*init_tsk), GFP_KERNEL);
+	if (!init_tsk) {
+		return;
+	}
+	kvm_read_guest_virt_helper(init_tsk_vaddr, init_tsk, sizeof(*init_tsk), vcpu, 0, &e);
+
+}
+
+
+static struct pt_regs *kvm_get_guest_regs(void)
+{
+	struct kvm_segment cs, ss;
+	struct kvm_vcpu *vcpu = __this_cpu_read(current_vcpu);
+	struct pt_regs *regs;
+
+	if (!vcpu)
+		return NULL;
+
+	regs = kzalloc(sizeof(*regs), GFP_KERNEL);
+	if (!regs)
+		return NULL;
+
+	regs->ax = kvm_register_read(vcpu, VCPU_REGS_RAX);
+	regs->bx = kvm_register_read(vcpu, VCPU_REGS_RBX); 
+	regs->cx = kvm_register_read(vcpu, VCPU_REGS_RCX); 
+	regs->dx = kvm_register_read(vcpu, VCPU_REGS_RDX); 
+	regs->si = kvm_register_read(vcpu, VCPU_REGS_RSI); 
+	regs->di = kvm_register_read(vcpu, VCPU_REGS_RDI); 
+	regs->sp = kvm_register_read(vcpu, VCPU_REGS_RSP); 
+	regs->bp = kvm_register_read(vcpu, VCPU_REGS_RBP);
+#ifdef CONFIG_X86_64
+	regs->r8  = kvm_register_read(vcpu, VCPU_REGS_R8);
+	regs->r9  = kvm_register_read(vcpu, VCPU_REGS_R9);
+	regs->r10 = kvm_register_read(vcpu, VCPU_REGS_R10);
+	regs->r11 = kvm_register_read(vcpu, VCPU_REGS_R11);
+	regs->r12 = kvm_register_read(vcpu, VCPU_REGS_R12);
+	regs->r13 = kvm_register_read(vcpu, VCPU_REGS_R13);
+	regs->r14 = kvm_register_read(vcpu, VCPU_REGS_R14);
+	regs->r15 = kvm_register_read(vcpu, VCPU_REGS_R15);
+#endif
+	regs->ip    = kvm_rip_read(vcpu);
+	regs->flags = kvm_get_rflags(vcpu);
+
+	kvm_get_segment(vcpu, &cs, VCPU_SREG_CS);
+	kvm_get_segment(vcpu, &ss, VCPU_SREG_SS);
+
+	regs->cs = cs.base;
+	regs->ss = ss.base;
+
+	return regs;
+}
 
 static struct perf_guest_info_callbacks kvm_guest_cbs = {
 	.is_in_guest		= kvm_is_in_guest,
 	.is_user_mode		= kvm_is_user_mode,
 	.get_guest_ip		= kvm_get_guest_ip,
+	.get_guest_regs		= kvm_get_guest_regs,
+	.get_guest_current	= kvm_get_guest_current,
+	.get_guest_current2	= kvm_get_guest_current2,
 };
 
 void kvm_before_handle_nmi(struct kvm_vcpu *vcpu)
@@ -6433,6 +6906,7 @@ int kvm_arch_vcpu_ioctl_translate(struct kvm_vcpu *vcpu,
 	gpa_t gpa;
 	int idx;
 
+	LOG("got vaddr %lx\n", vaddr);
 	idx = srcu_read_lock(&vcpu->kvm->srcu);
 	gpa = kvm_mmu_gva_to_gpa_system(vcpu, vaddr, NULL);
 	srcu_read_unlock(&vcpu->kvm->srcu, idx);

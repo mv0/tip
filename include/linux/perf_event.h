@@ -14,6 +14,17 @@
 #ifndef _LINUX_PERF_EVENT_H
 #define _LINUX_PERF_EVENT_H
 
+#define DEBUG_PERF 1
+
+#if DEBUG_PERF
+#define RLOG(level, format, args...)    do { printk(level "%s %s:%d " format, __FILE__, __FUNCTION__, __LINE__, ##args); } while (0)
+#define LOG(format, args...)            RLOG(KERN_DEBUG, format, ##args)
+#else
+#define RLOG(level, format, args...)    do {} while (0)
+#define LOG(format, args...)            do {} while (0)
+#endif
+
+
 #include <uapi/linux/perf_event.h>
 
 /*
@@ -29,6 +40,9 @@ struct perf_guest_info_callbacks {
 	int				(*is_in_guest)(void);
 	int				(*is_user_mode)(void);
 	unsigned long			(*get_guest_ip)(void);
+	struct pt_regs			*(*get_guest_regs)(void);
+	void				(*get_guest_current)(void);
+	void				(*get_guest_current2)(void);
 };
 
 #ifdef CONFIG_HAVE_HW_BREAKPOINT

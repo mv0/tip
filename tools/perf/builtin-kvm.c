@@ -694,6 +694,7 @@ static int process_sample_event(struct perf_tool *tool,
 	struct thread *thread = machine__findnew_thread(machine, sample->tid);
 	struct perf_kvm_stat *kvm = container_of(tool, struct perf_kvm_stat,
 						 tool);
+	pr_debug("in kvm process_sample_event()\n");
 
 	if (thread == NULL) {
 		pr_debug("problem processing %d event, skipping it.\n",
@@ -733,6 +734,8 @@ static int read_events(struct perf_kvm_stat *kvm)
 		.comm			= perf_event__process_comm,
 		.ordered_samples	= true,
 	};
+
+	pr_debug("in kvm read_events...\n");
 
 	kvm->tool = eops;
 	kvm->session = perf_session__new(kvm->file_name, O_RDONLY, 0, false,

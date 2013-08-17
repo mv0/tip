@@ -67,6 +67,7 @@ void thread__insert_map(struct thread *self, struct map *map)
 	map_groups__insert(&self->mg, map);
 }
 
+
 int thread__fork(struct thread *self, struct thread *parent)
 {
 	int i;

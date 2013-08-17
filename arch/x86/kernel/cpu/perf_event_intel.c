@@ -2052,6 +2052,8 @@ __init int intel_pmu_init(void)
 	unsigned int unused;
 	int version;
 
+	LOG("in intel_pmu_init\n");
+
 	if (!cpu_has(&boot_cpu_data, X86_FEATURE_ARCH_PERFMON)) {
 		switch (boot_cpu_data.x86) {
 		case 0x6:
@@ -2073,10 +2075,13 @@ __init int intel_pmu_init(void)
 		return -ENODEV;
 
 	version = eax.split.version_id;
-	if (version < 2)
+	if (version < 2) {
+		LOG("x86_pmu == core_pmu\n");
 		x86_pmu = core_pmu;
-	else
+	} else {
+		LOG("x86_pmu == intel_pmu\n");
 		x86_pmu = intel_pmu;
+	}
 
 	x86_pmu.version			= version;
 	x86_pmu.num_counters		= eax.split.num_counters;

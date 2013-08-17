@@ -1498,6 +1498,8 @@ static int __init init_hw_perf_events(void)
 
 	pr_info("Performance Events: ");
 
+	LOG("in init_hw_perf_events()\n");
+
 	switch (boot_cpu_data.x86_vendor) {
 	case X86_VENDOR_INTEL:
 		err = intel_pmu_init();
@@ -1930,14 +1932,31 @@ static const struct stacktrace_ops backtrace_ops = {
 void
 perf_callchain_kernel(struct perf_callchain_entry *entry, struct pt_regs *regs)
 {
+	struct pt_regs *gregs = NULL;
+
 	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
-		/* TODO: We don't support guest os callchain now */
-		return;
+#if 0
+		if (!perf_guest_cbs->is_user_mode()) {
+			LOG("in guest, kernel mode\n");
+
+			LOG("guest has rip 0x%lx\n", 
+				perf_guest_cbs->get_guest_ip());
+
+			gregs = perf_guest_cbs->get_guest_regs();
+			if (!gregs)
+				return;
+
+			regs = gregs;
+		}
+#endif
 	}
 
 	perf_callchain_store(entry, regs->ip);
 
 	dump_trace(NULL, regs, NULL, 0, &backtrace_ops, entry);
+
+	if (gregs)
+		kfree(gregs);
 }
 
 static inline int
@@ -1950,6 +1969,8 @@ static unsigned long get_segment_base(unsigned int segment)
 {
 	struct desc_struct *desc;
 	int idx = segment >> 3;
+
+	LOG("getting segment base...\n");
 
 	if ((segment & SEGMENT_TI_MASK) == SEGMENT_LDT) {
 		if (idx > LDT_ENTRIES)
@@ -1981,8 +2002,12 @@ perf_callchain_user32(struct pt_regs *regs, struct perf_callchain_entry *entry)
 	struct stack_frame_ia32 frame;
 	const void __user *fp;
 
-	if (!test_thread_flag(TIF_IA32))
+	LOG("in perf_callchain_user32\n");
+
+	if (!test_thread_flag(TIF_IA32)) {
+		LOG("flag TIF_IA32 not set\n");
 		return 0;
+	}
 
 	cs_base = get_segment_base(regs->cs);
 	ss_base = get_segment_base(regs->ss);
@@ -2018,10 +2043,23 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 {
 	struct stack_frame frame;
 	const void __user *fp;
+	struct pt_regs *gregs = NULL;
 
 	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
-		/* TODO: We don't support guest os callchain now */
-		return;
+#if 0
+		if (perf_guest_cbs->is_user_mode()) {
+			LOG("in guest, user mode\n");
+
+			LOG("guest has rip 0x%lx\n", 
+				perf_guest_cbs->get_guest_ip());
+
+			gregs = perf_guest_cbs->get_guest_regs();
+			if (!gregs)
+				return;
+
+			regs = gregs;
+		}
+#endif
 	}
 
 	/*
@@ -2034,8 +2072,10 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 
 	perf_callchain_store(entry, regs->ip);
 
-	if (!current->mm)
+	if (!current->mm) {
+		LOG("not current->mm\n");
 		return;
+	}
 
 	if (perf_callchain_user32(regs, entry))
 		return;
@@ -2049,12 +2089,16 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 		if (bytes != sizeof(frame))
 			break;
 
-		if (!valid_user_frame(fp, sizeof(frame)))
+		if (!valid_user_frame(fp, sizeof(frame))) {
+			LOG("# invalid user frame\n");
 			break;
+		}
 
 		perf_callchain_store(entry, frame.return_address);
 		fp = frame.next_frame;
 	}
+	if (gregs)
+		kfree(gregs);
 }
 
 /*

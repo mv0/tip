@@ -233,6 +233,8 @@ static __initconst const struct x86_pmu p6_pmu = {
 
 __init int p6_pmu_init(void)
 {
+	LOG("in p6_pmu_init()\n");
+
 	switch (boot_cpu_data.x86_model) {
 	case 1:
 	case 3:  /* Pentium Pro */
@@ -244,8 +246,10 @@ __init int p6_pmu_init(void)
 	case 9:
 	case 13:
 		/* Pentium M */
+		LOG("x86_mode %d\n", boot_cpu_data.x86_model);
 		break;
 	default:
+		LOG("invalid !\n");
 		pr_cont("unsupported p6 CPU model %d ",
 			boot_cpu_data.x86_model);
 		return -ENODEV;

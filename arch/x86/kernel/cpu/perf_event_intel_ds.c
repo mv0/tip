@@ -342,6 +342,7 @@ void reserve_ds_buffers(void)
 	x86_pmu.bts_active = 0;
 	x86_pmu.pebs_active = 0;
 
+
 	if (!x86_pmu.bts && !x86_pmu.pebs)
 		return;
 
@@ -408,6 +409,7 @@ void intel_pmu_enable_bts(u64 config)
 	unsigned long debugctlmsr;
 
 	debugctlmsr = get_debugctlmsr();
+
 
 	debugctlmsr |= DEBUGCTLMSR_TR;
 	debugctlmsr |= DEBUGCTLMSR_BTS;
@@ -991,6 +993,8 @@ void intel_ds_init(void)
 	if (!boot_cpu_has(X86_FEATURE_DTES64))
 		return;
 
+	LOG("in intel_ds_init()\n");
+
 	x86_pmu.bts  = boot_cpu_has(X86_FEATURE_BTS);
 	x86_pmu.pebs = boot_cpu_has(X86_FEATURE_PEBS);
 	if (x86_pmu.pebs) {
@@ -1000,24 +1004,28 @@ void intel_ds_init(void)
 		switch (format) {
 		case 0:
 			printk(KERN_CONT "PEBS fmt0%c, ", pebs_type);
+			LOG("drain_pebs == intel_pmu_drain_pebs_core\n");
 			x86_pmu.pebs_record_size = sizeof(struct pebs_record_core);
 			x86_pmu.drain_pebs = intel_pmu_drain_pebs_core;
 			break;
 
 		case 1:
 			printk(KERN_CONT "PEBS fmt1%c, ", pebs_type);
+			LOG("drain_pebs == intel_pmu_drain_pebs_nhm\n");
 			x86_pmu.pebs_record_size = sizeof(struct pebs_record_nhm);
 			x86_pmu.drain_pebs = intel_pmu_drain_pebs_nhm;
 			break;
 
 		case 2:
 			pr_cont("PEBS fmt2%c, ", pebs_type);
+			LOG("drain_pebs == intel_pmu_drain_pebs_hsw\n");
 			x86_pmu.pebs_record_size = sizeof(struct pebs_record_hsw);
 			x86_pmu.drain_pebs = intel_pmu_drain_pebs_hsw;
 			break;
 
 		default:
 			printk(KERN_CONT "no PEBS fmt%d%c, ", format, pebs_type);
+			LOG("no drain\n");
 			x86_pmu.pebs = 0;
 		}
 	}

@@ -164,8 +164,10 @@ perf_callchain(struct perf_event *event, struct pt_regs *regs)
 	int kernel = !event->attr.exclude_callchain_kernel;
 	int user   = !event->attr.exclude_callchain_user;
 
-	if (!kernel && !user)
+	if (!kernel && !user) {
+		LOG("neither kernel nor user\n");
 		return NULL;
+	}
 
 	entry = get_callchain_entry(&rctx);
 	if (rctx == -1)
@@ -176,7 +178,26 @@ perf_callchain(struct perf_event *event, struct pt_regs *regs)
 
 	entry->nr = 0;
 
+#if 0
+	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
+		if (!perf_guest_cbs->is_user_mode()) {
+			LOG("GUEST KERNEL context\n");
+			perf_callchain_store(entry, PERF_CONTEXT_GUEST_KERNEL);
+			perf_callchain_kernel(entry, regs);
+		} else {
+			LOG("GUEST USER MODE context\n");
+			perf_callchain_store(entry, PERF_CONTEXT_GUEST_USER);
+			perf_callchain_user(entry, regs);
+		}
+		goto exit_put;
+	}
+#endif
 	if (kernel && !user_mode(regs)) {
+#if 0
+		if (perf_guest_cbs && perf_guest_cbs->is_in_guest())
+			perf_callchain_store(entry, PERF_CONTEXT_GUEST_KERNEL);
+		else
+#endif
 		perf_callchain_store(entry, PERF_CONTEXT_KERNEL);
 		perf_callchain_kernel(entry, regs);
 	}
@@ -195,7 +216,11 @@ perf_callchain(struct perf_event *event, struct pt_regs *regs)
 			 */
 			if (event->ctx->task && event->ctx->task != current)
 				goto exit_put;
-
+#if 0
+			if (perf_guest_cbs && perf_guest_cbs->is_in_guest())
+				perf_callchain_store(entry, PERF_CONTEXT_GUEST_USER);
+			else
+#endif
 			perf_callchain_store(entry, PERF_CONTEXT_USER);
 			perf_callchain_user(entry, regs);
 		}

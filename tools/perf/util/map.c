@@ -549,6 +549,8 @@ void maps__insert(struct rb_root *maps, struct map *map)
 	const u64 ip = map->start;
 	struct map *m;
 
+	pr_debug("in map__insert with ip %lx\n", ip);
+
 	while (*p != NULL) {
 		parent = *p;
 		m = rb_entry(parent, struct map, rb_node);
