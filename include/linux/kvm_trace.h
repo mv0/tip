@@ -32,16 +32,26 @@ struct trace_userspace {
 	unsigned long flags;
 };
 
-#define KVM_START_USERSPACE_TRACE       _IOW(KVMIO, 0xf0, struct trace_userspace)
-#define KVM_STOP_USERSPACE_TRACE        _IOR(KVMIO, 0xf1, int)
-#define KVM_USERSPACE_TRACE_GET_FDS	_IOR(KVMIO, 0xf2, int *)
+/* got and sent to us */
+struct entry {
+        int nr_fds;
+        int __user *fds;
+};
 
-#define KVM_START_SYSCALL_TRACE         _IOW(KVMIO, 0xf3, struct trace_syscall)
-#define KVM_STOP_SYSCALL_TRACE          _IO(KVMIO, 0xf4)
+
+#define KVM_START_USERSPACE_TRACE       _IOW(KVMIO, 0xf0, struct trace_userspace *)
+
+#define KVM_USERSPACE_GET_NR_FDS        _IOR(KVMIO, 0xf1, int *)
+#define KVM_USERSPACE_GET_FDS           _IOWR(KVMIO, 0xf2, struct entry *)
+
+#define KVM_STOP_USERSPACE_TRACE        _IOR(KVMIO, 0xf3, int *)
 
 
-#define KVM_START_SYSCALL_TRACE_SS                      _IO(KVMIO, 0xf5)
-#define KVM_STOP_SYSCALL_TRACE_SS                       _IO(KVMIO, 0xf6)
+#define KVM_START_SYSCALL_TRACE         _IOW(KVMIO, 0xa0, struct trace_data *)
+#define KVM_STOP_SYSCALL_TRACE          _IO(KVMIO, 0xa1)
+
+#define KVM_START_SYSCALL_TRACE_SS      _IO(KVMIO, 0xa2)
+#define KVM_STOP_SYSCALL_TRACE_SS       _IO(KVMIO, 0xa3)
 
 #if 0
 int errno;

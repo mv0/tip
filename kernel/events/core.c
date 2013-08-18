@@ -3062,17 +3062,22 @@ find_get_context(struct pmu *pmu, struct task_struct *task, int cpu)
 	int ctxn, err;
 
 	if (!task) {
+                LOG("not tracking task, should go with CPU\n");
 		/* Must be root to operate on a CPU event: */
-		if (perf_paranoid_cpu() && !capable(CAP_SYS_ADMIN))
+		if (perf_paranoid_cpu() && !capable(CAP_SYS_ADMIN)) {
+                        LOG("perf_paranoia cpu or not capable\n");
 			return ERR_PTR(-EACCES);
+                }
 
 		/*
 		 * We could be clever and allow to attach a event to an
 		 * offline CPU and activate it when the CPU comes up, but
 		 * that's for later.
 		 */
-		if (!cpu_online(cpu))
+		if (!cpu_online(cpu)) {
+                        LOG("cpu not online!\n");
 			return ERR_PTR(-ENODEV);
+                }
 
 		cpuctx = per_cpu_ptr(pmu->pmu_cpu_context, cpu);
 		ctx = &cpuctx->ctx;
@@ -4982,7 +4987,6 @@ void perf_event_comm(struct task_struct *task)
 	struct perf_event_context *ctx;
 	int ctxn;
 
-	LOG("got comm event\n");
 	rcu_read_lock();
 	for_each_task_context_nr(ctxn) {
 		ctx = task->perf_event_ctxp[ctxn];
@@ -6988,6 +6992,7 @@ SYSCALL_DEFINE5(perf_event_open,
 	 * any hardware group.
 	 */
 	pmu = event->pmu;
+        LOG("accounted event\n");
 
 	if (group_leader &&
 	    (is_software_event(event) != is_software_event(group_leader))) {
@@ -7012,14 +7017,17 @@ SYSCALL_DEFINE5(perf_event_open,
 		}
 	}
 
+        LOG("getting right context\n");
 	/*
 	 * Get the target context (task or percpu):
 	 */
 	ctx = find_get_context(pmu, task, event->cpu);
 	if (IS_ERR(ctx)) {
+                LOG("could not found a context for %d\n", event->cpu);
 		err = PTR_ERR(ctx);
 		goto err_alloc;
 	}
+        LOG("found context\n");
 
 	if (task) {
 		put_task_struct(task);
@@ -7058,9 +7066,12 @@ SYSCALL_DEFINE5(perf_event_open,
 	}
 
 	if (output_event) {
+                LOG("got output event\n");
 		err = perf_event_set_output(event, output_event);
-		if (err)
+		if (err) {
+                        LOG("could not set event output\n");
 			goto err_context;
+                }
 	}
 
 	event_file = anon_inode_getfile("[perf_event]", &perf_fops, event, O_RDWR);
@@ -7069,6 +7080,7 @@ SYSCALL_DEFINE5(perf_event_open,
 		err = PTR_ERR(event_file);
 		goto err_context;
 	}
+        LOG("created event_file\n");
 
 	if (move_group) {
 		struct perf_event_context *gctx = group_leader->ctx;
@@ -7125,6 +7137,8 @@ SYSCALL_DEFINE5(perf_event_open,
 	perf_event__header_size(event);
 	perf_event__id_header_size(event);
 
+        LOG("precalculated sample_data sizes\n");
+
 	/*
 	 * Drop the reference on the group_event after placing the
 	 * new event on the sibling_list. This ensures destruction
@@ -7136,17 +7150,22 @@ SYSCALL_DEFINE5(perf_event_open,
 	return event_fd;
 
 err_context:
+        LOG("err_context detected\n");
 	perf_unpin_context(ctx);
 	put_ctx(ctx);
 err_alloc:
+        LOG("err_alloc detected\n");
 	free_event(event);
 err_task:
+        LOG("err_task detected\n");
 	put_online_cpus();
 	if (task)
 		put_task_struct(task);
 err_group_fd:
+        LOG("err_group_fd detected\n");
 	fdput(group);
 err_fd:
+        LOG("err_fd detected\n");
 	put_unused_fd(event_fd);
 	return err;
 }

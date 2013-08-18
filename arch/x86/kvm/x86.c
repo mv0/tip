@@ -3587,7 +3587,7 @@ LIST_HEAD(perf_fds);
 
 static DEFINE_MUTEX(perf_event_fd_lock);
 
-static struct perf_event_fd *perf_event_init_fd(int fd)
+static struct perf_event_fd *perf_event_init_fd(void)
 {
 	struct perf_event_fd *pfd;
 
@@ -3595,11 +3595,43 @@ static struct perf_event_fd *perf_event_init_fd(int fd)
 	if (!pfd)
 		return NULL;
 
-	pfd->fd = fd;
 	INIT_LIST_HEAD(&pfd->list);
 	spin_lock_init(&pfd->lock);
 
 	return pfd;
+}
+
+static int remove_fds(int fd, struct list_head *head)
+{
+        struct perf_event_fd *pos, *tmp;
+        int r = 1;
+
+        mutex_lock(&perf_event_fd_lock);
+        list_for_each_entry_safe(pos, tmp, &perf_fds, list) {
+                if (fd == pos->fd) {
+                        LOG("found %d fd to remove from list\n", fd);
+                        list_del(&pos->list);
+                        kfree(pos);
+                        r = 0;
+                }
+        }
+        mutex_unlock(&perf_event_fd_lock);
+
+        return r;
+}
+
+static unsigned int count_fds(struct list_head *head)
+{
+        struct perf_event_fd *pos;
+        unsigned int cnt = 0;
+
+        mutex_lock(&perf_event_fd_lock);
+        list_for_each_entry(pos, head, list) {
+                cnt++;
+        }
+        mutex_unlock(&perf_event_fd_lock);
+
+        return cnt;
 }
 
 long kvm_arch_vm_ioctl(struct file *filp,
@@ -3862,123 +3894,118 @@ long kvm_arch_vm_ioctl(struct file *filp,
 		break;
 	}
 	case KVM_START_USERSPACE_TRACE: {
-		struct trace_userspace userspace_trace;
+		struct trace_userspace utrace;
 		struct perf_event_fd *pfd;
 		r = -EFAULT;
 
 		LOG("setting user-space tracing..\n");
 
-		if (copy_from_user(&userspace_trace,
-				   argp, 
-				   sizeof(struct trace_userspace))) {
+		if (copy_from_user(&utrace, argp, sizeof(struct trace_userspace))) {
 			LOG("failed to get data userspace data\n");
 			goto out;
 		}
 
-		r = sys_perf_event_open(userspace_trace.event_attr,
-					userspace_trace.pid,
-					userspace_trace.cpu,
-					userspace_trace.group_fd,
-					userspace_trace.flags);
+		LOG("event attr\n");
+		LOG("type: %u, size: %u, config: %llx, exclude_user: %x, "
+		    "exclude_kernel: %x, exclude_hv: %x\n",
+		    utrace.event_attr->type, utrace.event_attr->size,
+		    utrace.event_attr->config, utrace.event_attr->exclude_user,
+		    utrace.event_attr->exclude_kernel, utrace.event_attr->exclude_hv);
+
+		LOG("sample_type: %llx\n", utrace.event_attr->sample_type);
+
+		LOG("task: %x, precise_ip: %x, sample_id_all: %x, "
+		    "exclude_host: %x, exclude_guest: %x, "
+		    "exclude_callchain_user: %x, exclude_callchain_kernel: %x\n",
+		    utrace.event_attr->task, utrace.event_attr->precise_ip,
+		    utrace.event_attr->sample_id_all, 
+                    utrace.event_attr->exclude_host,
+		    utrace.event_attr->exclude_guest, 
+                    utrace.event_attr->exclude_callchain_user,
+		    utrace.event_attr->exclude_callchain_kernel);
+
+
+		LOG("pid %d, cpu %d, flags 0x%lx\n",
+			utrace.pid, utrace.cpu, utrace.flags);
+
+		r = sys_perf_event_open(utrace.event_attr, utrace.pid,
+					utrace.cpu, utrace.group_fd, utrace.flags);
 
 		if (r < 0) {
 			LOG("failed to get fd...\n");
 			break;
 		}
-		pfd = perf_event_init_fd(r);
+		pfd = perf_event_init_fd();
 
 		spin_lock(&pfd->lock);
+                pfd->fd = r;
 		list_add_tail(&pfd->list, &perf_fds);
 		spin_unlock(&pfd->lock);
 
 		LOG("got event fd %d\n", pfd->fd);
-
 		LOG("starting user-space tracing..\n");
 
-		LOG("event attr\n");
-		LOG("type: %u, size: %u, config: %llx, exclude_user: %x, "
-		    "exclude_kernel: %x, exclude_hv: %x\n",
-		    userspace_trace.event_attr->type,
-		    userspace_trace.event_attr->size,
-		    userspace_trace.event_attr->config,
-		    userspace_trace.event_attr->exclude_user,
-		    userspace_trace.event_attr->exclude_kernel,
-		    userspace_trace.event_attr->exclude_hv);
-
-		LOG("sample_type: %llx\n", 
-		    userspace_trace.event_attr->sample_type);
-
-		LOG("task: %x, precise_ip: %x, sample_id_all: %x, "
-		    "exclude_host: %x, exclude_guest: %x, "
-		    "exclude_callchain_user: %x, exclude_callchain_kernel: %x\n",
-		    userspace_trace.event_attr->task,
-		    userspace_trace.event_attr->precise_ip,
-		    userspace_trace.event_attr->sample_id_all,
-		    userspace_trace.event_attr->exclude_host,
-		    userspace_trace.event_attr->exclude_guest,
-		    userspace_trace.event_attr->exclude_callchain_user,
-		    userspace_trace.event_attr->exclude_callchain_kernel);
-
-
-		LOG("pid %d, cpu %d, flags 0x%lx\n",
-			userspace_trace.pid,
-			userspace_trace.cpu,
-			userspace_trace.flags);
-
 		break;
 	}
-	case KVM_USERSPACE_TRACE_GET_FDS: {
-		struct perf_event_fd *pos;
-		int *fds;
-		int cnt;
-		r = -EFAULT;
+        case KVM_USERSPACE_GET_NR_FDS: {
+                int nr_fds;
+                r = -EFAULT;
 
-		LOG("getting fds ...\n");
-		cnt = 0;
-		list_for_each_entry(pos, &perf_fds, list) {
-			cnt++;
-		}
+                nr_fds = count_fds(&perf_fds);
 
-		LOG("got %d fds ...\n", cnt);
+                if (copy_to_user(argp, &nr_fds, sizeof(int *)))
+                        break;
 
-		fds = kzalloc(sizeof(int) * cnt, GFP_KERNEL);
+                r = 0;
+                break;
+        }
+	case KVM_USERSPACE_GET_FDS: {
+                struct perf_event_fd *pos;
+                struct entry entries;
+                int __user *uptr;
+                r = -EFAULT;
+                
+                if (copy_from_user(&entries, argp, sizeof(struct entry))) {
+                        LOG("failed to copy from us\n");
+                        break;
+                }
 
-		cnt = 0;
-		list_for_each_entry(pos, &perf_fds, list) {
-			fds[cnt++] = pos->fd;
-			fds++;
-		}
+                /* us should allocate some space for it */
+                if (entries.fds == NULL) {
+                        LOG("invalid user-space\n");
+                        break;
+                }
 
-		LOG("copying data to user...\n");
+                uptr = entries.fds;
+                /* copy it back to us */
+                list_for_each_entry(pos, &perf_fds, list) {
+                        *uptr = pos->fd;
+                        LOG("giving back to us fd %d\n", *uptr);
+                        if (copy_to_user(argp, &uptr, sizeof(int *))) {
+                                LOG("failed to copy to us\n");
+                                break;
+                        }
+                        uptr++;
+                }
+                entries.nr_fds = count_fds(&perf_fds);
 
-		if (copy_to_user(argp, &fds, (sizeof(int) * cnt))) {
-			goto out;
-		}
-		LOG("done copying data to user\n");
+                /* deliver everything back */
+                if (copy_to_user(argp, &entries, sizeof(struct entry)))
+                        break;
 
-		r = 0;
-		kfree(fds);
+                r = 0;
 		break;
 	}
-	case KVM_STOP_USERSPACE_TRACE: {
-		struct perf_event_fd *pos, *tmp;
+	case KVM_STOP_USERSPACE_TRACE: { /* just remove it from the list, us will ioctl with EVENT_IOC_DISABLE */
 		int fd;
 		r = -EFAULT;
 
-		mutex_lock(&perf_event_fd_lock);
-		list_for_each_entry_safe(pos, tmp, &perf_fds, list) {
+                if (copy_from_user(argp, &fd, sizeof(int *)))
+                        goto out;
 
-			if (copy_from_user(argp, &fd, sizeof(int)))
-				goto out;
+                if (remove_fds(fd, &perf_fds))
+                        goto out;
 
-			if (fd == pos->fd) {
-				LOG("found %d fd to remove from list\n", fd);
-				list_del(&pos->list);
-				kfree(pos);
-				break;
-			}
-		}
-		mutex_unlock(&perf_event_fd_lock);
 		r = 0;
 		break;
 	}
