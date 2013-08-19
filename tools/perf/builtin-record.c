@@ -492,59 +492,36 @@ static int __cmd_record(struct perf_record *rec, int argc, const char **argv)
 			advance_output(rec, err);
 		}
 	}
-	if (!perf_guest) {
-		err = perf_event__synthesize_kernel_mmap(tool, process_synthesized_event,
-							 machine, "_text");
-		if (err < 0)
-			err = perf_event__synthesize_kernel_mmap(tool, process_synthesized_event,
-								 machine, "_stext");
-		if (err < 0)
-			pr_err("Couldn't record kernel reference relocation symbol\n"
-			       "Symbol resolution may be skewed if relocation was used (e.g. kexec).\n"
-			       "Check /proc/kallsyms permission or run as root.\n");
 
-		err = perf_event__synthesize_modules(tool, process_synthesized_event,
-						     machine);
-		if (err < 0)
-			pr_err("Couldn't record kernel module information.\n"
-			       "Symbol resolution may be skewed if relocation was used (e.g. kexec).\n"
-			       "Check /proc/modules permission or run as root.\n");
-	}
+	err = perf_event__synthesize_kernel_mmap(tool, process_synthesized_event,
+						 machine, "_text");
+	if (err < 0)
+		err = perf_event__synthesize_kernel_mmap(tool, process_synthesized_event,
+							 machine, "_stext");
+	if (err < 0)
+		pr_err("Couldn't record kernel reference relocation symbol\n"
+		       "Symbol resolution may be skewed if relocation was used (e.g. kexec).\n"
+		       "Check /proc/kallsyms permission or run as root.\n");
+
+	err = perf_event__synthesize_modules(tool, process_synthesized_event,
+					     machine);
+	if (err < 0)
+		pr_err("Couldn't record kernel module information.\n"
+		       "Symbol resolution may be skewed if relocation was used (e.g. kexec).\n"
+		       "Check /proc/modules permission or run as root.\n");
 
 	if (perf_guest) {
-		pr_info("==== got perf_guest() ==== \n");
-
-
-		pr_info("\t** entering machines__process_guests\n");
 		machines__process_guests(&session->machines,
 					 perf_event__synthesize_guest_os, tool);
-		
-		pr_info("\t** ended machines__process_guests\n");
-
-		pr_info("\t** entering machines__find_nondefaultguest()\n");
-		machine = machines__find_nondefaultguest(&session->machines);
-		pr_info("\t** ended machines__find_nondefaultguest()\n");
-
-		pr_info("\t** entering perf_event__synthesize_guest_threads() \n");
-		err = perf_event__synthesize_guest_threads(tool, process_synthesized_event, 
-					machine);
-		pr_info("\t** ended perf_event__synthesize_guest_threads()\n");
-
-		if (err < 0)
-			pr_info("Failed to synthesize guest threads()\n");
 	}
 
-	if (!perf_guest && perf_target__has_task(&opts->target)) {
-		pr_info("got perf_target_has_task()\n");
+	if (perf_target__has_task(&opts->target))
 		err = perf_event__synthesize_thread_map(tool, evsel_list->threads,
 						  process_synthesized_event,
 						  machine);
-	}
-	else if (!perf_guest && perf_target__has_cpu(&opts->target)) {
-		pr_info("got perf_target_has_cpu()\n");
+	else if (perf_target__has_cpu(&opts->target))
 		err = perf_event__synthesize_threads(tool, process_synthesized_event,
 					       machine);
-	}
 	else /* command specified */
 		err = 0;
 

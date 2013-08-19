@@ -806,25 +806,17 @@ static struct machine *
 {
 	const u8 cpumode = event->header.misc & PERF_RECORD_MISC_CPUMODE_MASK;
 
-	if (perf_guest) {
-		pr_debug("\t event->header.type = %s\n", 
-			perf_event__name(event->header.type));
+	if (perf_guest &&
+	    ((cpumode == PERF_RECORD_MISC_GUEST_KERNEL) ||
+	     (cpumode == PERF_RECORD_MISC_GUEST_USER))) {
+		u32 pid;
 
-		if (cpumode == PERF_RECORD_MISC_GUEST_KERNEL) {
-			pr_debug("\t\t PERF_RECORD_MISC_GUEST_KERNEL\n");
-			if (event->header.type != PERF_RECORD_MMAP) {
-				return perf_session__find_machine(session, event->ip.pid);
-			} else {
-				return machines__find_nondefaultguest(&session->machines);
-			}
-		} else if (cpumode == PERF_RECORD_MISC_GUEST_USER) {
-			pr_debug("\t\t PERF_RECORD_MISC_GUEST_USER\n");
-			if (event->header.type == PERF_RECORD_MMAP) {
-				return machines__find_nondefaultguest(&session->machines);
-			} else {
-				return perf_session__find_machine(session, event->ip.pid);
-			}
-		}
+		if (event->header.type == PERF_RECORD_MMAP)
+			pid = event->mmap.pid;
+		else
+			pid = event->ip.pid;
+
+		return perf_session__findnew_machine(session, pid);
 	}
 
 	return &session->machines.host;
@@ -839,7 +831,6 @@ static int perf_session_deliver_event(struct perf_session *session,
 	struct perf_evsel *evsel;
 	struct machine *machine;
 
-	pr_debug("!!!\t\t in perf_session_deliver_event()\n");
 	dump_event(session, event, file_offset, sample);
 
 	evsel = perf_evlist__id2evsel(session->evlist, sample->id);
@@ -861,10 +852,6 @@ static int perf_session_deliver_event(struct perf_session *session,
 	}
 
 	machine = perf_session__find_machine_for_cpumode(session, event);
-	if (!machine) {
-		pr_info("empty machine in perf_session_deliver_event\n");
-		abort();
-	}
 
 	switch (event->header.type) {
 	case PERF_RECORD_SAMPLE:
@@ -900,7 +887,6 @@ static int perf_session_deliver_event(struct perf_session *session,
 		++session->stats.nr_unknown_events;
 		return -1;
 	}
-	pr_debug("!!!\t\t ENDING perf_session_deliver_event()\n");
 }
 
 static int perf_session__preprocess_sample(struct perf_session *session,
@@ -1202,7 +1188,6 @@ int __perf_session__process_events(struct perf_session *session,
 	union perf_event *event;
 	uint32_t size;
 
-	pr_debug("\t>> in __perf_session__process_events()\n");
 	perf_tool__fill_defaults(tool);
 
 	page_offset = page_size * (data_offset / page_size);
@@ -1292,7 +1277,6 @@ int perf_session__process_events(struct perf_session *self,
 {
 	int err;
 
-	pr_debug("\t ** in perf_session__process_events()\n");
 	if (perf_session__register_idle_thread(self) == NULL)
 		return -ENOMEM;
 

@@ -1496,10 +1496,8 @@ static int __event_process_build_id(struct build_id_event *bev,
 	enum dso_kernel_type dso_type;
 
 	machine = perf_session__findnew_machine(session, bev->pid);
-	if (!machine) {
-		pr_info("invalid machine for pid %d\n", bev->pid);
+	if (!machine)
 		goto out;
-	}
 
 	misc = bev->header.misc & PERF_RECORD_MISC_CPUMODE_MASK;
 
@@ -1532,7 +1530,7 @@ static int __event_process_build_id(struct build_id_event *bev,
 
 		build_id__sprintf(dso->build_id, sizeof(dso->build_id),
 				  sbuild_id);
-		pr_info("build id event received for %s: %s\n",
+		pr_debug("build id event received for %s: %s\n",
 			 dso->long_name, sbuild_id);
 	}
 

@@ -24,8 +24,13 @@ int build_id__mark_dso_hit(struct perf_tool *tool __maybe_unused,
 {
 	struct addr_location al;
 	u8 cpumode = event->header.misc & PERF_RECORD_MISC_CPUMODE_MASK;
-	struct thread *thread = NULL;
+	struct thread *thread = machine__findnew_thread(machine, event->ip.pid);
 
+	if (thread == NULL) {
+		pr_err("problem processing %d event, skipping it.\n",
+			event->header.type);
+		return -1;
+	}
 	/*
 	 * When recording guest actions, the kernel mappings
 	 * are not created, so create them before trying
@@ -36,50 +41,12 @@ int build_id__mark_dso_hit(struct perf_tool *tool __maybe_unused,
 	    machine->vmlinux_maps[MAP__FUNCTION] == NULL)
 		machine__create_kernel_maps(machine);
 
-	/* 
-	 * for tracking guest we must iterate over all threads 
-	 * belonging to the guest machine
-	 */
-	if (perf_guest && cpumode == PERF_RECORD_MISC_GUEST_USER) {
 
-		struct rb_root *rthreads = &machine->threads;
-		struct rb_node *node = rb_first(rthreads);
+	thread__find_addr_map(thread, machine, cpumode, MAP__FUNCTION,
+			      event->ip.ip, &al);
 
-		while (node) {
-
-			struct thread *thrd = rb_entry(node, struct thread, rb_node);
-
-			pr_debug("thread %s, pid %d\n", thrd->comm, thrd->tid);
-			thread__find_addr_map(thrd, machine, cpumode, MAP__FUNCTION,
-					      event->ip.ip, &al);
-
-			if (al.map != NULL) {
-				/* go to next thread */
-				if (al.map->dso->hit == 1) {
-					node = rb_next(node);
-					continue;
-				}
-
-				al.map->dso->hit = 1;
-				break;
-			}
-			node = rb_next(node);
-		}
-	} else {
-		thread = machine__findnew_thread(machine, event->ip.pid);
-
-		if (thread == NULL) {
-			pr_err("problem processing %d event, skipping it.\n",
-				event->header.type);
-			return -1;
-		}
-
-		thread__find_addr_map(thread, machine, cpumode, MAP__FUNCTION,
-				      event->ip.ip, &al);
-
-		if (al.map != NULL)
-			al.map->dso->hit = 1;
-	}
+	if (al.map != NULL)
+		al.map->dso->hit = 1;
 
 	return 0;
 }

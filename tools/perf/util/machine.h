@@ -64,7 +64,6 @@ struct machine *machines__add(struct machines *machines, pid_t pid,
 struct machine *machines__find_host(struct machines *machines);
 struct machine *machines__find(struct machines *machines, pid_t pid);
 struct machine *machines__findnew(struct machines *machines, pid_t pid);
-struct machine *machines__find_nondefaultguest(struct machines *machines);
 
 void machines__set_id_hdr_size(struct machines *machines, u16 id_hdr_size);
 char *machine__mmap_name(struct machine *machine, char *bf, size_t size);

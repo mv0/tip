@@ -307,7 +307,8 @@ static int process_sample_event(struct perf_tool *tool,
 
 	if (perf_event__preprocess_sample(event, machine, &al, sample,
 					  rep->annotate_init) < 0) {
-		pr_info("in report failed perf_event__preprocess_sample\n");
+		fprintf(stderr, "problem processing %d event, skipping it.\n",
+			event->header.type);
 		return -1;
 	}
 
@@ -513,32 +514,29 @@ static int __cmd_report(struct perf_report *rep)
 	if (ret)
 		return ret;
 
-	if (!perf_guest) {
+	kernel_map = session->machines.host.vmlinux_maps[MAP__FUNCTION];
+	kernel_kmap = map__kmap(kernel_map);
+	if (kernel_map == NULL ||
+	    (kernel_map->dso->hit &&
+	     (kernel_kmap->ref_reloc_sym == NULL ||
+	      kernel_kmap->ref_reloc_sym->addr == 0))) {
+		const char *desc =
+		    "As no suitable kallsyms nor vmlinux was found, kernel samples\n"
+		    "can't be resolved.";
 
-		kernel_map = session->machines.host.vmlinux_maps[MAP__FUNCTION];
-		kernel_kmap = map__kmap(kernel_map);
-		if (kernel_map == NULL ||
-		    (kernel_map->dso->hit &&
-		     (kernel_kmap->ref_reloc_sym == NULL ||
-		      kernel_kmap->ref_reloc_sym->addr == 0))) {
-			const char *desc =
-			    "As no suitable kallsyms nor vmlinux was found, kernel samples\n"
-			    "can't be resolved.";
-
-			if (kernel_map) {
-				const struct dso *kdso = kernel_map->dso;
-				if (!RB_EMPTY_ROOT(&kdso->symbols[MAP__FUNCTION])) {
-					desc = "If some relocation was applied (e.g. "
-					       "kexec) symbols may be misresolved.";
-				}
+		if (kernel_map) {
+			const struct dso *kdso = kernel_map->dso;
+			if (!RB_EMPTY_ROOT(&kdso->symbols[MAP__FUNCTION])) {
+				desc = "If some relocation was applied (e.g. "
+				       "kexec) symbols may be misresolved.";
 			}
+		}
 
-			ui__warning(
+		ui__warning(
 "Kernel address maps (/proc/{kallsyms,modules}) were restricted.\n\n"
 "Check /proc/sys/kernel/kptr_restrict before running 'perf record'.\n\n%s\n\n"
 "Samples in kernel modules can't be resolved as well.\n\n",
-			desc);
-		}
+		desc);
 	}
 
 	if (verbose > 3)
