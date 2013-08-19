@@ -852,8 +852,10 @@ void perf_pmu_disable(struct pmu *pmu)
 void perf_pmu_enable(struct pmu *pmu)
 {
 	int *count = this_cpu_ptr(pmu->pmu_disable_count);
-	if (!--(*count))
+	if (!--(*count)) {
+                LOG("invoking pmu callback pmu_enable()\n");
 		pmu->pmu_enable(pmu);
+        }
 }
 
 static DEFINE_PER_CPU(struct list_head, rotation_list);
@@ -1140,6 +1142,9 @@ list_add_event(struct perf_event *event, struct perf_event_context *ctx)
  */
 static inline void perf_event__state_init(struct perf_event *event)
 {
+        LOG("initializing state attr.disabled = %d\n",
+                        event->attr.disabled);
+
 	event->state = event->attr.disabled ? PERF_EVENT_STATE_OFF :
 					      PERF_EVENT_STATE_INACTIVE;
 }
@@ -1382,6 +1387,7 @@ event_sched_out(struct perf_event *event,
 	if (event->state != PERF_EVENT_STATE_ACTIVE)
 		return;
 
+        LOG("setting state to INACTIVE\n");
 	event->state = PERF_EVENT_STATE_INACTIVE;
 	if (event->pending_disable) {
 		event->pending_disable = 0;
@@ -1645,6 +1651,7 @@ event_sched_in(struct perf_event *event,
 	if (event->state <= PERF_EVENT_STATE_OFF)
 		return 0;
 
+        LOG("enabling state!!!\n");
 	event->state = PERF_EVENT_STATE_ACTIVE;
 	event->oncpu = smp_processor_id();
 
@@ -1666,6 +1673,7 @@ event_sched_in(struct perf_event *event,
 	smp_wmb();
 
 	if (event->pmu->add(event, PERF_EF_START)) {
+                LOG("setting up event to INACTIVE state\n");
 		event->state = PERF_EVENT_STATE_INACTIVE;
 		event->oncpu = -1;
 		return -EAGAIN;
@@ -1831,6 +1839,7 @@ static int  __perf_install_in_context(void *info)
 	struct perf_event_context *task_ctx = cpuctx->task_ctx;
 	struct task_struct *task = current;
 
+        LOG("installing a context for cpu %d\n", event->cpu);
 	perf_ctx_lock(cpuctx, task_ctx);
 	perf_pmu_disable(cpuctx->ctx.pmu);
 
@@ -1865,14 +1874,16 @@ static int  __perf_install_in_context(void *info)
 	 * calling add_event_to_ctx()
 	 */
 	update_cgrp_time_from_event(event);
-
+        LOG("adding event to context\n");
 	add_event_to_ctx(event, ctx);
 
 	/*
 	 * Schedule everything back in
 	 */
+        LOG("event_sched_in\n");
 	perf_event_sched_in(cpuctx, task_ctx, task);
 
+        LOG("pmu_enabling should go here\n");
 	perf_pmu_enable(cpuctx->ctx.pmu);
 	perf_ctx_unlock(cpuctx, task_ctx);
 
@@ -1899,6 +1910,7 @@ perf_install_in_context(struct perf_event_context *ctx,
 {
 	struct task_struct *task = ctx->task;
 
+        LOG("attaching a perf event to a context\n");
 	lockdep_assert_held(&ctx->mutex);
 
 	event->ctx = ctx;
@@ -1949,7 +1961,7 @@ static void __perf_event_mark_enabled(struct perf_event *event)
 	struct perf_event *sub;
 	u64 tstamp = perf_event_time(event);
 
-	LOG("marking event ACTIVE\n");
+	LOG("marking event INACTIVE\n");
 
 	event->state = PERF_EVENT_STATE_INACTIVE;
 	event->tstamp_enabled = tstamp - event->total_time_enabled;
@@ -1989,7 +2001,8 @@ static int __perf_event_enable(void *info)
 	update_context_time(ctx);
 
 	if (event->state >= PERF_EVENT_STATE_INACTIVE) {
-		LOG("event state inactive\n");
+                if (event->state == PERF_EVENT_STATE_INACTIVE)
+                        LOG("event state inactive\n");
 		goto unlock;
 	}
 
@@ -2020,10 +2033,14 @@ static int __perf_event_enable(void *info)
 		LOG("group can not go on...\n");
 		err = -EEXIST;
 	} else {
-		if (event == leader)
+                LOG("group can go on\n");
+		if (event == leader) {
+                        LOG("event is leader\n");
 			err = group_sched_in(event, cpuctx, ctx);
-		else
+                } else {
+                        LOG("event is not leader\n");
 			err = event_sched_in(event, cpuctx, ctx);
+                }
 	}
 
 	if (err) {
@@ -2071,8 +2088,10 @@ void perf_event_enable(struct perf_event *event)
 	}
 
 	raw_spin_lock_irq(&ctx->lock);
-	if (event->state >= PERF_EVENT_STATE_INACTIVE)
+	if (event->state >= PERF_EVENT_STATE_INACTIVE) {
+                LOG("state is INACTIVE\n");
 		goto out;
+        }
 
 	/*
 	 * If the event is in error state, clear that first.
@@ -3625,6 +3644,7 @@ static long perf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		LOG("PERF_IOC_FLAG_GROUP\n");
 		perf_event_for_each(event, func);
 	} else {
+                LOG("PERF_IOC_FLAG_GROUP not set\n");
 		perf_event_for_each_child(event, func);
 	}
 
@@ -7085,6 +7105,7 @@ SYSCALL_DEFINE5(perf_event_open,
 	if (move_group) {
 		struct perf_event_context *gctx = group_leader->ctx;
 
+                LOG("move_group is on\n");
 		mutex_lock(&gctx->mutex);
 		perf_remove_from_context(group_leader);
 

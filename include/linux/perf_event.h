@@ -14,7 +14,7 @@
 #ifndef _LINUX_PERF_EVENT_H
 #define _LINUX_PERF_EVENT_H
 
-#define DEBUG_PERF 1
+#define DEBUG_PERF 0
 
 #if DEBUG_PERF
 #define RLOG(level, format, args...)    do { printk(level "%s %s:%d " format, __FILE__, __FUNCTION__, __LINE__, ##args); } while (0)

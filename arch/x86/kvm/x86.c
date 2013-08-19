@@ -3605,6 +3605,7 @@ static int remove_fds(int fd, struct list_head *head)
 {
         struct perf_event_fd *pos, *tmp;
         int r = 1;
+        LOG("got fd %d to remove from list\n", fd);
 
         mutex_lock(&perf_event_fd_lock);
         list_for_each_entry_safe(pos, tmp, &perf_fds, list) {
@@ -3912,7 +3913,8 @@ long kvm_arch_vm_ioctl(struct file *filp,
 		    utrace.event_attr->config, utrace.event_attr->exclude_user,
 		    utrace.event_attr->exclude_kernel, utrace.event_attr->exclude_hv);
 
-		LOG("sample_type: %llx\n", utrace.event_attr->sample_type);
+		LOG("sample_type: %llx, disabled: %x\n", 
+                        utrace.event_attr->sample_type, utrace.event_attr->disabled);
 
 		LOG("task: %x, precise_ip: %x, sample_id_all: %x, "
 		    "exclude_host: %x, exclude_guest: %x, "
@@ -4000,11 +4002,16 @@ long kvm_arch_vm_ioctl(struct file *filp,
 		int fd;
 		r = -EFAULT;
 
-                if (copy_from_user(argp, &fd, sizeof(int *)))
+                LOG("stopping user-space trace\n");
+                if (copy_from_user(&fd, argp, sizeof(int *))) {
+                        LOG("failed to copy from user\n");
                         goto out;
-
-                if (remove_fds(fd, &perf_fds))
-                        goto out;
+                }
+                LOG("got %d to remove from list\n", fd);
+                if (remove_fds(fd, &perf_fds)) {
+                        LOG("could not remove %d fd. Is it still active?\n", fd);
+                }
+                LOG("successfully removed %d from list\n", fd);
 
 		r = 0;
 		break;
