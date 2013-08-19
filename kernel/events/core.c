@@ -4385,6 +4385,7 @@ static void perf_output_read_one(struct perf_output_handle *handle,
 	u64 values[4];
 	int n = 0;
 
+        LOG("reading ONE\n");
 	values[n++] = perf_event_count(event);
 	if (read_format & PERF_FORMAT_TOTAL_TIME_ENABLED) {
 		values[n++] = enabled +
@@ -4451,6 +4452,8 @@ static void perf_output_read(struct perf_output_handle *handle,
 {
 	u64 enabled = 0, running = 0, now;
 	u64 read_format = event->attr.read_format;
+
+        LOG("reading event\n");
 
 	/*
 	 * compute total_time_enabled, total_time_running
@@ -5306,10 +5309,13 @@ static int __perf_event_overflow(struct perf_event *event,
 		irq_work_queue(&event->pending);
 	}
 
-	if (event->overflow_handler)
+	if (event->overflow_handler) {
+                LOG("invoking event->overflow\n");
 		event->overflow_handler(event, data, regs);
-	else
+        } else {
+                LOG("invoking perf_event_output\n");
 		perf_event_output(event, data, regs);
+        }
 
 	if (event->fasync && event->pending_kill) {
 		event->pending_wakeup = 1;
@@ -5323,6 +5329,7 @@ int perf_event_overflow(struct perf_event *event,
 			  struct perf_sample_data *data,
 			  struct pt_regs *regs)
 {
+        LOG("overflow!\n");
 	return __perf_event_overflow(event, 1, data, regs);
 }
 

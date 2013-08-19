@@ -1183,6 +1183,7 @@ static int intel_pmu_handle_irq(struct pt_regs *regs)
 	int handled;
 
 	cpuc = &__get_cpu_var(cpu_hw_events);
+        LOG("received IRQ\n");
 
 	/*
 	 * No known reason to not always do late ACK,
