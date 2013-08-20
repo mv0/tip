@@ -6917,6 +6917,31 @@ out:
 	return ret;
 }
 
+static void print_event_attr(struct perf_event_attr __user *event_attr)
+{
+
+	LOG("event attr\n");
+	LOG("type: %u, size: %u, config: %llx, exclude_user: %x, "
+	    "exclude_kernel: %x, exclude_hv: %x\n",
+	    event_attr->type, event_attr->size,
+	    event_attr->config, event_attr->exclude_user,
+	    event_attr->exclude_kernel, event_attr->exclude_hv);
+
+	LOG("sample_type: %llx, disabled: %x\n", 
+		event_attr->sample_type, 
+		event_attr->disabled);
+
+	LOG("task: %x, precise_ip: %x, sample_id_all: %x, "
+	    "exclude_host: %x, exclude_guest: %x, "
+	    "exclude_callchain_user: %x, exclude_callchain_kernel: %x\n",
+	    event_attr->task, event_attr->precise_ip,
+	    event_attr->sample_id_all, 
+	    event_attr->exclude_host,
+	    event_attr->exclude_guest, 
+	    event_attr->exclude_callchain_user,
+	    event_attr->exclude_callchain_kernel);
+}
+
 /**
  * sys_perf_event_open - open a performance event, associate it to a task/cpu
  *
@@ -6945,6 +6970,9 @@ SYSCALL_DEFINE5(perf_event_open,
 	/* for future expandability... */
 	if (flags & ~PERF_FLAG_ALL)
 		return -EINVAL;
+
+	print_event_attr(attr_uptr);
+	LOG("pid %d, cpu %d, flags 0x%lx\n", pid, cpu, flags);
 
 	err = perf_copy_attr(attr_uptr, &attr);
 	if (err)

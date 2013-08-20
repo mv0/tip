@@ -3905,7 +3905,7 @@ long kvm_arch_vm_ioctl(struct file *filp,
 			LOG("failed to get data userspace data\n");
 			goto out;
 		}
-
+#if 0
 		LOG("event attr\n");
 		LOG("type: %u, size: %u, config: %llx, exclude_user: %x, "
 		    "exclude_kernel: %x, exclude_hv: %x\n",
@@ -3926,10 +3926,10 @@ long kvm_arch_vm_ioctl(struct file *filp,
                     utrace.event_attr->exclude_callchain_user,
 		    utrace.event_attr->exclude_callchain_kernel);
 
-
 		LOG("pid %d, cpu %d, flags 0x%lx\n",
 			utrace.pid, utrace.cpu, utrace.flags);
 
+#endif
 		r = sys_perf_event_open(utrace.event_attr, utrace.pid,
 					utrace.cpu, utrace.group_fd, utrace.flags);
 
@@ -5477,7 +5477,7 @@ static void get_and_print_segments(struct kvm_vcpu *vcpu)
 	print_segment("fs", &seg);
 }
 
-static __u64 translate_to_guest(struct kvm_vcpu *vcpu, void *linear_address)
+__u64 translate_to_guest(struct kvm_vcpu *vcpu, void *linear_address)
 {
 	int r;
 	struct kvm_translation trans;
@@ -5498,7 +5498,7 @@ static __u64 translate_to_guest(struct kvm_vcpu *vcpu, void *linear_address)
 
 	return phys_address;
 }
-
+#if 0
 static void translate_and_read(struct kvm_vcpu *vcpu, void *linear_address, 
 			       void *data, size_t len)
 {
@@ -5517,8 +5517,11 @@ static void translate_and_read(struct kvm_vcpu *vcpu, void *linear_address,
 	}
 
 }
+#endif
 
 #define __INIT_TASK_ADDR	&init_task
+
+#if 0
 static void kvm_get_guest_current(void)
 {
 	struct kvm_vcpu *vcpu = __this_cpu_read(current_vcpu);
@@ -5610,7 +5613,6 @@ static void kvm_get_guest_current(void)
 	}
 	LOG("initial pgd %lx\n", mpgd.pgd);
 
-#if 0
 	do {
 		ntsk = (struct task_struct *) ntsk;
 	
@@ -5651,7 +5653,6 @@ static void kvm_get_guest_current(void)
 
 
 	} while (ntsk != init_tsk);
-#endif
 
 
 	if (!ftask) {
@@ -5669,11 +5670,12 @@ out:
 	if (init_tsk)
 		kfree(init_tsk);
 }
+#endif
 /*
 	kvm_read_guest_virt_helper(addr, val, bytes, vcpu, 0, exception);
 */
 
-static void kvm_get_guest_current2(void)
+static void kvm_get_guest_current(void)
 {
 	struct kvm_vcpu *vcpu = __this_cpu_read(current_vcpu);
 	struct x86_exception e;
@@ -5688,20 +5690,20 @@ static void kvm_get_guest_current2(void)
 	u64 kpgd;
 	int mode;
 
-	if (!vcpu) {
+	if (!kvm_is_in_guest()) {
 		LOG("### not in guest\n");
 		return;
 	}
 
 	kpgd = kvm_read_cr3(vcpu);
-	LOG("cr3 @ %llx\n", kpgd);
-	get_and_print_segments(vcpu);
+	LOG("cr3 @ 0x%llx\n", kpgd);
 
-	mode = kvm_x86_ops->get_cpl(vcpu);
-	if (mode != 3) {
+	if (!kvm_is_user_mode()) {
 		LOG("### not in user-space\n");
 		return;
 	}
+
+	get_and_print_segments(vcpu);
 
 	LOG("init_task vaddr @ 0x%lx\n", init_tsk_vaddr);
 	init_tsk = kzalloc(sizeof(*init_tsk), GFP_KERNEL);
@@ -5709,6 +5711,9 @@ static void kvm_get_guest_current2(void)
 		return;
 	}
 	kvm_read_guest_virt_helper(init_tsk_vaddr, init_tsk, sizeof(*init_tsk), vcpu, 0, &e);
+
+	print_hex_dump(KERN_DEBUG, "init_task contents:  ", DUMP_PREFIX_ADDRESS, 16,
+			1, init_tsk, sizeof(*init_tsk), 1);
 
 }
 
@@ -5762,7 +5767,6 @@ static struct perf_guest_info_callbacks kvm_guest_cbs = {
 	.get_guest_ip		= kvm_get_guest_ip,
 	.get_guest_regs		= kvm_get_guest_regs,
 	.get_guest_current	= kvm_get_guest_current,
-	.get_guest_current2	= kvm_get_guest_current2,
 };
 
 void kvm_before_handle_nmi(struct kvm_vcpu *vcpu)
