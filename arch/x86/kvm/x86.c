@@ -5442,17 +5442,17 @@ static unsigned long kvm_get_guest_ip(void)
 
 	return ip;
 }
-/*
 
-struct kvm_segment {
-	__u64 base;
-	__u32 limit;
-	__u16 selector;
-	__u8  type;
-	__u8  present, dpl, db, s, l, g, avl;
-	__u8  unusable;
-	__u8  padding;
-};
+/*
+        struct kvm_segment {
+                __u64 base;
+                __u32 limit;
+                __u16 selector;
+                __u8  type;
+                __u8  present, dpl, db, s, l, g, avl;
+                __u8  unusable;
+                __u8  padding;
+        };
 */
 
 static void print_segment(const char *seg_name, struct kvm_segment *seg)
@@ -5460,7 +5460,8 @@ static void print_segment(const char *seg_name, struct kvm_segment *seg)
 	LOG("segment %s, base: 0x%llx, limit: 0x%x, "
 	    "selector: 0x%u, type: 0x%u, present: 0x%u, dpl: 0x%u\n",
 	    seg_name, seg->base, seg->limit, 
-	    seg->selector, seg->type, seg->present, seg->dpl);
+	    seg->selector, seg->type, 
+            seg->present, seg->dpl);
 }
 
 static void get_and_print_segments(struct kvm_vcpu *vcpu)
@@ -5477,244 +5478,175 @@ static void get_and_print_segments(struct kvm_vcpu *vcpu)
 	print_segment("fs", &seg);
 }
 
-__u64 translate_to_guest(struct kvm_vcpu *vcpu, void *linear_address)
-{
-	int r;
-	struct kvm_translation trans;
-	__u64 phys_address;
-
-	trans.linear_address = *(__u64 *) &linear_address;
-	LOG("linear addres %llx\n", 
-			*(__u64 *) &linear_address);
-
-	r = kvm_arch_vcpu_ioctl_translate(vcpu, &trans);
-	phys_address = trans.physical_address;
-
-	if (phys_address == 0UL || phys_address == -1UL) {
-		return -1UL;
-	}
-
-	LOG("physical addr @ 0x%llx", phys_address);
-
-	return phys_address;
-}
-#if 0
-static void translate_and_read(struct kvm_vcpu *vcpu, void *linear_address, 
-			       void *data, size_t len)
-{
-	int r;
-	__u64 phys_address = translate_to_guest(vcpu, linear_address);
-
-	if (phys_address == -1UL) {
-		LOG("failed to get phys_address!\n");
-		return;
-	}
-
-	r = kvm_read_guest_atomic(vcpu->kvm, phys_address, data, len);
-	if (r < 0 || !data) {
-		LOG("failed to kvm_read_guest_atomic!\n");
-		return;
-	}
-
-}
-#endif
-
-#define __INIT_TASK_ADDR	&init_task
 
 #if 0
-static void kvm_get_guest_current(void)
-{
-	struct kvm_vcpu *vcpu = __this_cpu_read(current_vcpu);
+        usefully for debugging memory contents from
+        within the kernel
 
-	struct task_struct *init_tsk, *ntsk, *ftask;
-	struct task_struct *ntsk_vaddr_off;
-
-	void *init_tsk_addr = __INIT_TASK_ADDR;
-	void *vaddr_pgd, *vaddr_mm_struct;
-
-	struct mm_struct *imm;
-	pgd_t mpgd;
-
-	size_t tasks_off = (size_t) &((struct task_struct *) 0)->tasks;
-
-	u64 kpgd;
-	int mode;
-
-	init_tsk = ntsk = ntsk_vaddr_off = ftask = NULL;
-	if (!vcpu) {
-		LOG("### not in guest\n");
-		return;
-	}
-
-	kpgd = kvm_read_cr3(vcpu);
-	LOG("cr3 @ %llx\n", kpgd);
-	get_and_print_segments(vcpu);
-
-	mode = kvm_x86_ops->get_cpl(vcpu);
-	if (mode != 3) {
-		LOG("### not in user-space\n");
-		return;
-	}
-
-	LOG("init_task vaddr @ 0x%p\n", init_tsk_addr);
-
-	init_tsk = kzalloc(sizeof(*init_tsk), GFP_KERNEL | GFP_ATOMIC);
-	if (!init_tsk) {
-		return;
-	}
-
-	translate_and_read(vcpu, init_tsk_addr, init_tsk, sizeof(*init_tsk));
-	LOG("init_tsk @ %p\n", init_tsk);
-
-	ntsk_vaddr_off = ((struct task_struct *) init_tsk->tasks.next) - tasks_off;
-	if (!ntsk_vaddr_off) {
-		LOG("failed to get ntsk\n");
-		goto out;
-	}
-	LOG("ntsk_off at @ %p\n", ntsk_vaddr_off);
-
-	ntsk = kzalloc(sizeof(*ntsk), GFP_KERNEL | GFP_ATOMIC);
-	if (!ntsk) {
-		goto out;
-	}
-	translate_and_read(vcpu, (void *) ntsk_vaddr_off, ntsk, sizeof(*ntsk));
-
-	if (!ntsk) {
-		LOG("failed to get ntsk\n");
-		goto out2;
-	}
-	LOG("ntsk struct @ %p\n", ntsk);
-	if (!ntsk->mm) {
-		LOG("failed to get ntsk->mm %p\n", ntsk->mm);
-		goto out2;
-	}
-	LOG("ntsk mm struct @ %p\n", ntsk->mm);
-
-
-	imm = kzalloc(sizeof(struct mm_struct), GFP_KERNEL | GFP_ATOMIC);
-	if (!imm) {
-		goto out2;
-	}
-
-	vaddr_mm_struct = ntsk->mm;
-	translate_and_read(vcpu, (void *) vaddr_mm_struct, imm, sizeof(struct mm_struct));
-
-	if (!imm->pgd) {
-		LOG("failed to get pgd for ntsk->mm->pgd\n");
-		goto out3;
-	}
-
-	vaddr_pgd = imm->pgd;
-	translate_and_read(vcpu, vaddr_pgd, &mpgd, sizeof(pgd_t));
-
-	if (!mpgd.pgd) {
-		LOG("failed to get mpgd\n");
-		goto out3;
-	}
-	LOG("initial pgd %lx\n", mpgd.pgd);
-
-	do {
-		ntsk = (struct task_struct *) ntsk;
-	
-		if (mpgd.pgd == kpgd) {
-			ftask = ntsk;
-			break;
-		}
-
-		ntsk_vaddr_off = ((struct task_struct *) ntsk->tasks.next) - tasks_off;
-
-
-		memset(ntsk, 0, sizeof(*ntsk));
-
-		translate_and_read(vcpu, ntsk_vaddr_off, ntsk, sizeof(*ntsk));
-		if (!ntsk || !ntsk->mm) {
-			LOG("failed to get ntsk or ntsk->mm\n");
-			break;
-		}
-		LOG("ntsk mm struct @ %p\n", ntsk->mm);
-
-		vaddr_mm_struct = ntsk->mm;
-
-		memset(imm, 0, sizeof(struct mm_struct));
-		translate_and_read(vcpu, vaddr_mm_struct, imm, sizeof(struct mm_struct));
-
-		if (!imm->pgd) {
-			LOG("failed to get pgd for ntsk_a\n");
-			break;
-		}
-
-		vaddr_pgd = imm->pgd;
-		translate_and_read(vcpu, vaddr_pgd, &mpgd, sizeof(pgd_t));
-
-		if (!mpgd.pgd) {
-			LOG("failed to get mpgd\n");
-			break;
-		}
-
-
-	} while (ntsk != init_tsk);
-
-
-	if (!ftask) {
-		LOG("failed to get desired task\n");
-		goto out3;
-	}
-	LOG("found task with pid %d\n", ftask->pid);
-out3:
-	if (imm)
-		kfree(imm);
-out2:
-	if (ntsk)
-		kfree(ntsk);
-out:
-	if (init_tsk)
-		kfree(init_tsk);
-}
+        print_hex_dump(KERN_DEBUG, "curr_task :", DUMP_PREFIX_ADDRESS, 16,
+                        1, curr_tsk, sizeof(struct task_struct), 1);
 #endif
+
 /*
-	kvm_read_guest_virt_helper(addr, val, bytes, vcpu, 0, exception);
-*/
+ * __CURRENT_TASK address points to &init_task, but
+ * it's actually location is very close to 0x000000000000
+ */
+
+#define __CURRENT_TSK           (size_t) &current_task
+#define __OFFSET(off)           (size_t) &((struct task_struct *) 0)->off
+#define __HARD_CODED_GS         0xffff88001fc00000
+
+/*
+ * @get_current_guest_tsk - get current task running on the VCPU
+ * @vcpu -- vcpu running
+ * @rtsk -- where to save the current_task
+ *
+ * - the current task can be found by an offset to %gs register.
+ *  Unfortunatelly the %gs register is not accessible from 
+ *  user-space.  See _copy_(from|to)_user dissabled and GET_THREAD_INFO()
+ *  macro on how to get current_task or current_thread_info.
+ *
+ * - rely on kvm_x86_ops->vmx_get_msr to get the actually contents of 
+ *   MSR_KERNEL_GS_BASE
+ *
+ * - &current_task points to init_task which holds the 
+ *   contents of the all tasks.
+ *
+ * - init_task->tasks represents the list of all running
+ *   tasks
+ *
+ * - (%gs + current_task) -> will hold
+ *   the address of current_task running, therefore 
+ *   we require to read that address from guest memory space.
+ *
+ *   NB: %gs + current_task, actually means %gs + (size_t) &current_task,
+ *   , the cast to (size_t) will give an offset, and the address, which
+ *   points to &init_task. 
+ */
+
+static int get_current_guest_tsk(struct kvm_vcpu *vcpu, 
+                                 struct task_struct *rtsk)
+{
+        struct x86_exception e;
+
+	void *curr_tsk_addr;
+	gva_t curr_tsk_vaddr;
+        gpa_t curr_tsk_paddr;
+
+        __u64 gs_base;
+
+        /* should copy from guest in here */
+        struct task_struct curr_tsk;
+        int r;
+#if 0
+        /*
+         * getting the contents of %gs in this manner
+         * would give a 0x0 address when running in user-space
+         */
+
+        gs_base = get_segment_base(vcpu, VCPU_SREG_GS);
+#endif
+
+        kvm_x86_ops->get_msr(vcpu, MSR_KERNEL_GS_BASE, &gs_base);
+        if (!gs_base) {
+                LOG("!invalid gs base %llx, failing back to hardcoded value\n", gs_base);
+                /*
+                 * this will likely fail if we change the size of
+                 * guest memory
+                 */
+                gs_base = __HARD_CODED_GS;
+        }
+
+        LOG("gs_base %llx\n", gs_base);
+        LOG("__CURRENT_TSK %lu\n", __CURRENT_TSK);
+
+        /*
+         * kernel will do a movl %gs:__CURRENT_TSK, %reg
+         * to find out the current task running, so
+         * to the same here.
+         */
+        curr_tsk_addr = (void *) (gs_base + __CURRENT_TSK);
+	LOG("curr_task_addr @ 0x%p\n", curr_tsk_addr);
+
+        curr_tsk_vaddr = *(gva_t *) &curr_tsk_addr;
+	LOG("curr_task_vaddr @ 0x%lx\n", curr_tsk_vaddr);
+
+        curr_tsk_paddr = vcpu->arch.walk_mmu->gva_to_gpa(vcpu, curr_tsk_vaddr, 0, &e);
+        LOG("curr_tsk_paddr @ 0x%llx\n", curr_tsk_paddr);
+
+
+        /* 
+         * NB: fetch only in a pointer
+         *
+         * the offset in %gs register holds the address 
+         * of current task, so first read that from the 
+         * guest, and afterwards get the whole contents 
+         * from that address
+         */
+	r = kvm_read_guest_virt_helper(curr_tsk_vaddr, &curr_tsk, 
+                                   sizeof(struct task_struct *), vcpu, 0, &e);
+
+        if (r != X86EMUL_CONTINUE) {
+                LOG("kvm_read_guest_virt err with %d\n", r);
+                return 1;
+        }
+
+        /* this should be returned to perf */
+        LOG("curr_tsk is at %lx\n", *(unsigned long *) &curr_tsk);
+
+        /* fetch the whole thing now */
+	r = kvm_read_guest_virt_helper(*(gva_t *) &curr_tsk, rtsk, 
+                                   sizeof(struct task_struct), vcpu, 0, &e);
+
+        if (r != X86EMUL_CONTINUE) {
+                LOG("kvm_read_guest_virt err with %d\n", r);
+                return 1;
+        }
+        return 0;
+}
+
 
 static void kvm_get_guest_current(void)
 {
-	struct kvm_vcpu *vcpu = __this_cpu_read(current_vcpu);
-	struct x86_exception e;
-
-	size_t tasks_off = (size_t) &((struct task_struct *) 0)->tasks;
-	void *init_tsk_addr = __INIT_TASK_ADDR + tasks_off;
-	gva_t init_tsk_vaddr = *(gva_t *) &init_tsk_addr;
-
-	/* head list */
-	struct task_struct *init_tsk;
+	struct kvm_vcpu *vcpu = NULL;
+        struct task_struct *curr_tsk = NULL;
 
 	u64 kpgd;
-	int mode;
+        vcpu = __this_cpu_read(current_vcpu);
 
 	if (!kvm_is_in_guest()) {
 		LOG("### not in guest\n");
 		return;
 	}
 
+        /* makes no sense to get pid 0 */
+	if (!kvm_is_user_mode()) {
+		LOG("########## not in user-space\n");
+                return;
+	}
+
 	kpgd = kvm_read_cr3(vcpu);
 	LOG("cr3 @ 0x%llx\n", kpgd);
-
-	if (!kvm_is_user_mode()) {
-		LOG("### not in user-space\n");
-		return;
-	}
-
 	get_and_print_segments(vcpu);
 
-	LOG("init_task vaddr @ 0x%lx\n", init_tsk_vaddr);
-	init_tsk = kzalloc(sizeof(*init_tsk), GFP_KERNEL);
-	if (!init_tsk) {
-		return;
-	}
-	kvm_read_guest_virt_helper(init_tsk_vaddr, init_tsk, sizeof(*init_tsk), vcpu, 0, &e);
+        /* this will hold on the current task from guest */
+        curr_tsk = kzalloc(sizeof(*curr_tsk), GFP_KERNEL);
+        if (!curr_tsk) {
+                return;
+        }
 
-	print_hex_dump(KERN_DEBUG, "init_task contents:  ", DUMP_PREFIX_ADDRESS, 16,
-			1, init_tsk, sizeof(*init_tsk), 1);
+        if (get_current_guest_tsk(vcpu, curr_tsk)) {
+                LOG("failed to get current tsk\n");
+                goto out;
+        }
 
+
+        LOG(">>>\n");
+        LOG("comm: %s\n", curr_tsk->comm);
+        LOG("pid: %d\n", curr_tsk->pid);
+out:
+        if (curr_tsk)
+                kfree(curr_tsk);
 }
 
 
