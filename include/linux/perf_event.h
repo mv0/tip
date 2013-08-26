@@ -14,13 +14,17 @@
 #ifndef _LINUX_PERF_EVENT_H
 #define _LINUX_PERF_EVENT_H
 
+#include <linux/ratelimit.h>
+
 #define DEBUG_PERF 1
 
 #if DEBUG_PERF
-#define RLOG(level, format, args...)    do { printk(level "%s %s:%d " format, __FILE__, __FUNCTION__, __LINE__, ##args); } while (0)
-#define LOG(format, args...)            RLOG(KERN_DEBUG, format, ##args)
+#define RLOG(level, fmt, args...)       do { printk(level "%s:%d " fmt, __FUNCTION__, __LINE__, ##args); } while (0)
+#define RLOGL(lvl, fmt, args...)        do { printk_ratelimited(lvl, "%s:%d " fmt, __FUNCTION__, __LINE__, ##args); } while (0)
+#define LOG(fmt, args...)               RLOG(KERN_DEBUG, fmt, ##args)
+#define LOGL(fmt, args...)              printk_ratelimited(KERN_DEBUG "%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 #else
-#define RLOG(level, format, args...)    do {} while (0)
+#define RLOG(level, fmt, args...)       do {} while (0)
 #define LOG(format, args...)            do {} while (0)
 #endif
 

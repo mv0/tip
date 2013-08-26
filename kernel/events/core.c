@@ -853,7 +853,7 @@ void perf_pmu_enable(struct pmu *pmu)
 {
 	int *count = this_cpu_ptr(pmu->pmu_disable_count);
 	if (!--(*count)) {
-                LOG("invoking pmu callback pmu_enable()\n");
+                LOGL("invoking pmu callback pmu_enable()\n");
 		pmu->pmu_enable(pmu);
         }
 }
@@ -1142,7 +1142,7 @@ list_add_event(struct perf_event *event, struct perf_event_context *ctx)
  */
 static inline void perf_event__state_init(struct perf_event *event)
 {
-        LOG("initializing state attr.disabled = %d\n",
+        LOGL("initializing state attr.disabled = %d\n",
                         event->attr.disabled);
 
 	event->state = event->attr.disabled ? PERF_EVENT_STATE_OFF :
@@ -1387,7 +1387,7 @@ event_sched_out(struct perf_event *event,
 	if (event->state != PERF_EVENT_STATE_ACTIVE)
 		return;
 
-        LOG("setting state to INACTIVE\n");
+        LOGL("setting state to INACTIVE\n");
 	event->state = PERF_EVENT_STATE_INACTIVE;
 	if (event->pending_disable) {
 		event->pending_disable = 0;
@@ -1511,7 +1511,7 @@ int __perf_event_disable(void *info)
 	struct perf_event_context *ctx = event->ctx;
 	struct perf_cpu_context *cpuctx = __get_cpu_context(ctx);
 
-	LOG("disabling event...\n");
+	LOGL("disabling event...\n");
 
 	/*
 	 * If this is a per-task event, need to check whether this
@@ -1563,7 +1563,7 @@ void perf_event_disable(struct perf_event *event)
 	struct perf_event_context *ctx = event->ctx;
 	struct task_struct *task = ctx->task;
 
-	LOG("disabling event\n");
+	LOGL("disabling event\n");
 	if (!task) {
 		/*
 		 * Disable the event on the cpu that it's on
@@ -1651,11 +1651,8 @@ event_sched_in(struct perf_event *event,
 	if (event->state <= PERF_EVENT_STATE_OFF)
 		return 0;
 
-        LOG("enabling state!!!\n");
 	event->state = PERF_EVENT_STATE_ACTIVE;
 	event->oncpu = smp_processor_id();
-
-	LOG("schedleuing event...\n");
 
 	/*
 	 * Unthrottle events, since we scheduled we might have missed several
@@ -1673,7 +1670,7 @@ event_sched_in(struct perf_event *event,
 	smp_wmb();
 
 	if (event->pmu->add(event, PERF_EF_START)) {
-                LOG("setting up event to INACTIVE state\n");
+                LOGL("setting up event to INACTIVE state\n");
 		event->state = PERF_EVENT_STATE_INACTIVE;
 		event->oncpu = -1;
 		return -EAGAIN;
@@ -1839,7 +1836,6 @@ static int  __perf_install_in_context(void *info)
 	struct perf_event_context *task_ctx = cpuctx->task_ctx;
 	struct task_struct *task = current;
 
-        LOG("installing a context for cpu %d\n", event->cpu);
 	perf_ctx_lock(cpuctx, task_ctx);
 	perf_pmu_disable(cpuctx->ctx.pmu);
 
@@ -1874,16 +1870,15 @@ static int  __perf_install_in_context(void *info)
 	 * calling add_event_to_ctx()
 	 */
 	update_cgrp_time_from_event(event);
-        LOG("adding event to context\n");
+        LOGL("adding event to context\n");
 	add_event_to_ctx(event, ctx);
 
 	/*
 	 * Schedule everything back in
 	 */
-        LOG("event_sched_in\n");
 	perf_event_sched_in(cpuctx, task_ctx, task);
 
-        LOG("pmu_enabling should go here\n");
+        LOGL("pmu_enabling should go here\n");
 	perf_pmu_enable(cpuctx->ctx.pmu);
 	perf_ctx_unlock(cpuctx, task_ctx);
 
@@ -1910,7 +1905,6 @@ perf_install_in_context(struct perf_event_context *ctx,
 {
 	struct task_struct *task = ctx->task;
 
-        LOG("attaching a perf event to a context\n");
 	lockdep_assert_held(&ctx->mutex);
 
 	event->ctx = ctx;
@@ -1961,7 +1955,7 @@ static void __perf_event_mark_enabled(struct perf_event *event)
 	struct perf_event *sub;
 	u64 tstamp = perf_event_time(event);
 
-	LOG("marking event INACTIVE\n");
+	LOGL("marking event INACTIVE\n");
 
 	event->state = PERF_EVENT_STATE_INACTIVE;
 	event->tstamp_enabled = tstamp - event->total_time_enabled;
@@ -1982,7 +1976,7 @@ static int __perf_event_enable(void *info)
 	struct perf_cpu_context *cpuctx = __get_cpu_context(ctx);
 	int err;
 
-	LOG("enabling event...\n");
+	LOGL("enabling event...\n");
 	/*
 	 * There's a time window between 'ctx->is_active' check
 	 * in perf_event_enable function and this place having:
@@ -1993,7 +1987,7 @@ static int __perf_event_enable(void *info)
 	 * by perf_event_exit_task.
 	 */
 	if (!ctx->is_active) {
-		LOG("ctx not active\n");
+		LOGL("ctx not active\n");
 		return -EINVAL;
 	}
 
@@ -2002,7 +1996,7 @@ static int __perf_event_enable(void *info)
 
 	if (event->state >= PERF_EVENT_STATE_INACTIVE) {
                 if (event->state == PERF_EVENT_STATE_INACTIVE)
-                        LOG("event state inactive\n");
+                        LOGL("event state inactive\n");
 		goto unlock;
 	}
 
@@ -2014,7 +2008,7 @@ static int __perf_event_enable(void *info)
 	__perf_event_mark_enabled(event);
 
 	if (!event_filter_match(event)) {
-		LOG("filter does not match...\n");
+		LOGL("filter does not match...\n");
 		if (is_cgroup_event(event))
 			perf_cgroup_defer_enabled(event);
 		goto unlock;
@@ -2025,20 +2019,20 @@ static int __perf_event_enable(void *info)
 	 * then don't put it on unless the group is on.
 	 */
 	if (leader != event && leader->state != PERF_EVENT_STATE_ACTIVE) {
-		LOG("leader != event and leader->state is active\n");
+		LOGL("leader != event and leader->state is active\n");
 		goto unlock;
 	}
 
 	if (!group_can_go_on(event, cpuctx, 1)) {
-		LOG("group can not go on...\n");
+		LOGL("group can not go on...\n");
 		err = -EEXIST;
 	} else {
-                LOG("group can go on\n");
+                LOGL("group can go on\n");
 		if (event == leader) {
-                        LOG("event is leader\n");
+                        LOGL("event is leader\n");
 			err = group_sched_in(event, cpuctx, ctx);
                 } else {
-                        LOG("event is not leader\n");
+                        LOGL("event is not leader\n");
 			err = event_sched_in(event, cpuctx, ctx);
                 }
 	}
@@ -2078,7 +2072,7 @@ void perf_event_enable(struct perf_event *event)
 	struct perf_event_context *ctx = event->ctx;
 	struct task_struct *task = ctx->task;
 
-	LOG("enabling event\n");
+	LOGL("enabling event\n");
 	if (!task) {
 		/*
 		 * Enable the event on the cpu that it's on
@@ -2089,7 +2083,7 @@ void perf_event_enable(struct perf_event *event)
 
 	raw_spin_lock_irq(&ctx->lock);
 	if (event->state >= PERF_EVENT_STATE_INACTIVE) {
-                LOG("state is INACTIVE\n");
+                LOGL("state is INACTIVE\n");
 		goto out;
         }
 
@@ -2139,7 +2133,6 @@ int perf_event_refresh(struct perf_event *event, int refresh)
 	/*
 	 * not supported on inherited events
 	 */
-	LOG("refreshing event\n");
 	if (event->attr.inherit || !is_sampling_event(event))
 		return -EINVAL;
 
@@ -3081,10 +3074,8 @@ find_get_context(struct pmu *pmu, struct task_struct *task, int cpu)
 	int ctxn, err;
 
 	if (!task) {
-                LOG("not tracking task, should go with CPU\n");
 		/* Must be root to operate on a CPU event: */
 		if (perf_paranoid_cpu() && !capable(CAP_SYS_ADMIN)) {
-                        LOG("perf_paranoia cpu or not capable\n");
 			return ERR_PTR(-EACCES);
                 }
 
@@ -3094,7 +3085,6 @@ find_get_context(struct pmu *pmu, struct task_struct *task, int cpu)
 		 * that's for later.
 		 */
 		if (!cpu_online(cpu)) {
-                        LOG("cpu not online!\n");
 			return ERR_PTR(-ENODEV);
                 }
 
@@ -3595,11 +3585,11 @@ static long perf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case PERF_EVENT_IOC_ENABLE:
-		LOG("got EVENT_IOC_ENABLE\n");
+		LOGL("got EVENT_IOC_ENABLE\n");
 		func = perf_event_enable;
 		break;
 	case PERF_EVENT_IOC_DISABLE:
-		LOG("got EVENT_IOC_DISABLE\n");
+		LOGL("got EVENT_IOC_DISABLE\n");
 		func = perf_event_disable;
 		break;
 	case PERF_EVENT_IOC_RESET:
@@ -3607,7 +3597,7 @@ static long perf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 
 	case PERF_EVENT_IOC_REFRESH:
-		LOG("got EVENT_IOC_REFRESH\n");
+		LOGL("got EVENT_IOC_REFRESH\n");
 		return perf_event_refresh(event, arg);
 
 	case PERF_EVENT_IOC_PERIOD:
@@ -3616,7 +3606,7 @@ static long perf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case PERF_EVENT_IOC_SET_OUTPUT:
 	{
 		int ret;
-		LOG("got EVENT_IOC_SET_OUTPUT\n");
+		LOGL("got EVENT_IOC_SET_OUTPUT\n");
 		if (arg != -1) {
 			struct perf_event *output_event;
 			struct fd output;
@@ -3633,7 +3623,7 @@ static long perf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	}
 
 	case PERF_EVENT_IOC_SET_FILTER:
-		LOG("got EVENT_IOC_SET_FILTER\n");
+		LOGL("got EVENT_IOC_SET_FILTER\n");
 		return perf_event_set_filter(event, (void __user *)arg);
 
 	default:
@@ -3641,10 +3631,10 @@ static long perf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	}
 
 	if (flags & PERF_IOC_FLAG_GROUP) {
-		LOG("PERF_IOC_FLAG_GROUP\n");
+		LOGL("PERF_IOC_FLAG_GROUP\n");
 		perf_event_for_each(event, func);
 	} else {
-                LOG("PERF_IOC_FLAG_GROUP not set\n");
+                LOGL("PERF_IOC_FLAG_GROUP not set\n");
 		perf_event_for_each_child(event, func);
 	}
 
@@ -4320,7 +4310,7 @@ static void __perf_event_header__init_id(struct perf_event_header *header,
 		/* namespace issues */
 		data->tid_entry.pid = perf_event_pid(event, current);
 		data->tid_entry.tid = perf_event_tid(event, current);
-		LOG("<< >> tid_entry.pid %u, tid_entry.tid %u, ip 0x%llx, addr 0x%llx\n", 
+		LOGL("<< >> tid_entry.pid %u, tid_entry.tid %u, ip 0x%llx, addr 0x%llx\n", 
 			data->tid_entry.pid, data->tid_entry.tid,
 			data->ip, data->addr);
 	}
@@ -4385,7 +4375,6 @@ static void perf_output_read_one(struct perf_output_handle *handle,
 	u64 values[4];
 	int n = 0;
 
-        LOG("reading ONE\n");
 	values[n++] = perf_event_count(event);
 	if (read_format & PERF_FORMAT_TOTAL_TIME_ENABLED) {
 		values[n++] = enabled +
@@ -4453,7 +4442,6 @@ static void perf_output_read(struct perf_output_handle *handle,
 	u64 enabled = 0, running = 0, now;
 	u64 read_format = event->attr.read_format;
 
-        LOG("reading event\n");
 
 	/*
 	 * compute total_time_enabled, total_time_running
@@ -4620,7 +4608,7 @@ void perf_prepare_sample(struct perf_event_header *header,
 	__perf_event_header__init_id(header, data, event);
 
 	if (sample_type & PERF_SAMPLE_IP) {
-		LOG("PERF_SAMPLE_IP\n");
+		LOGL("PERF_SAMPLE_IP\n");
 		data->ip = perf_instruction_pointer(regs);
 		if (perf_guest_cbs) {
 			perf_guest_cbs->get_guest_current();
@@ -4754,9 +4742,9 @@ perf_event_read_event(struct perf_event *event,
 	};
 	int ret;
 
-	LOG("got read event...\n");
+	LOGL("got read event...\n");
 
-	LOG("pid = %d, tid = %d\n", read_event.pid, read_event.tid);
+	LOGL("pid = %d, tid = %d\n", read_event.pid, read_event.tid);
 
 	perf_event_header__init_id(&read_event.header, &sample, event);
 	ret = perf_output_begin(&handle, event, read_event.header.size);
@@ -4875,7 +4863,7 @@ static void perf_event_task_output(struct perf_event *event,
 	task_event->event_id.tid = perf_event_tid(event, task);
 	task_event->event_id.ptid = perf_event_tid(event, current);
 
-	LOG("pid = %d, tid = %d\n", task_event->event_id.pid, 
+	LOGL("pid = %d, tid = %d\n", task_event->event_id.pid, 
 				    task_event->event_id.tid);
 
 	perf_output_put(&handle, task_event->event_id);
@@ -4898,7 +4886,7 @@ static void perf_event_task(struct task_struct *task,
 	    !atomic_read(&nr_task_events))
 		return;
 
-	LOG("got task event...\n");
+	LOGL("got task event...\n");
 
 	task_event = (struct perf_task_event){
 		.task	  = task,
@@ -4971,7 +4959,7 @@ static void perf_event_comm_output(struct perf_event *event,
 	comm_event->event_id.pid = perf_event_pid(event, comm_event->task);
 	comm_event->event_id.tid = perf_event_tid(event, comm_event->task);
 
-	LOG("pid = %d, tid = %d\n", comm_event->event_id.pid,
+	LOGL("pid = %d, tid = %d\n", comm_event->event_id.pid,
 				    comm_event->event_id.tid);
 
 	perf_output_put(&handle, comm_event->event_id);
@@ -5094,7 +5082,7 @@ static void perf_event_mmap_output(struct perf_event *event,
 	mmap_event->event_id.pid = perf_event_pid(event, current);
 	mmap_event->event_id.tid = perf_event_tid(event, current);
 
-	LOG("pid = %d, tid = %d\n", mmap_event->event_id.pid,
+	LOGL("pid = %d, tid = %d\n", mmap_event->event_id.pid,
 				    mmap_event->event_id.tid);
 
 	perf_output_put(&handle, mmap_event->event_id);
@@ -5186,7 +5174,7 @@ void perf_event_mmap(struct vm_area_struct *vma)
 	if (!atomic_read(&nr_mmap_events))
 		return;
 
-	LOG("got mmap event\n");
+	LOGL("got mmap event\n");
 
 	mmap_event = (struct perf_mmap_event){
 		.vma	= vma,
@@ -5310,10 +5298,10 @@ static int __perf_event_overflow(struct perf_event *event,
 	}
 
 	if (event->overflow_handler) {
-                LOG("invoking event->overflow\n");
+                LOGL("invoking event->overflow\n");
 		event->overflow_handler(event, data, regs);
         } else {
-                LOG("invoking perf_event_output\n");
+                LOGL("invoking perf_event_output\n");
 		perf_event_output(event, data, regs);
         }
 
@@ -5329,7 +5317,7 @@ int perf_event_overflow(struct perf_event *event,
 			  struct perf_sample_data *data,
 			  struct pt_regs *regs)
 {
-        LOG("overflow!\n");
+        LOGL("overflow!\n");
 	return __perf_event_overflow(event, 1, data, regs);
 }
 
@@ -6395,7 +6383,7 @@ int perf_pmu_register(struct pmu *pmu, const char *name, int type)
 {
 	int cpu, ret;
 
-	LOG("in perf_pmu_register(name: %s, type: %d)\n", name, type);
+	LOGL("in perf_pmu_register(name: %s, type: %d)\n", name, type);
 
 	mutex_lock(&pmus_lock);
 	ret = -ENOMEM;
@@ -6522,7 +6510,7 @@ struct pmu *perf_init_event(struct perf_event *event)
 	int idx;
 	int ret;
 
-	LOG("in perf_init_event()\n");
+	LOGL("in perf_init_event()\n");
 	idx = srcu_read_lock(&pmus_srcu);
 
 	rcu_read_lock();
@@ -6612,7 +6600,7 @@ perf_event_alloc(struct perf_event_attr *attr, int cpu,
 			return ERR_PTR(-EINVAL);
 	}
 
-	LOG("for cpu %d\n", cpu);
+	LOGL("for cpu %d\n", cpu);
 
 	event = kzalloc(sizeof(*event), GFP_KERNEL);
 	if (!event)
@@ -6700,7 +6688,7 @@ perf_event_alloc(struct perf_event_attr *attr, int cpu,
 		goto err_ns;
 	}
 
-	LOG("initted a pmu\n");
+	LOGL("initted a pmu\n");
 
 	if (!event->parent) {
 		if (event->attr.sample_type & PERF_SAMPLE_CALLCHAIN) {
@@ -6920,18 +6908,18 @@ out:
 static void print_event_attr(struct perf_event_attr __user *event_attr)
 {
 
-	LOG("event attr\n");
-	LOG("type: %u, size: %u, config: %llx, exclude_user: %x, "
+	LOGL("event attr\n");
+	LOGL("type: %u, size: %u, config: %llx, exclude_user: %x, "
 	    "exclude_kernel: %x, exclude_hv: %x\n",
 	    event_attr->type, event_attr->size,
 	    event_attr->config, event_attr->exclude_user,
 	    event_attr->exclude_kernel, event_attr->exclude_hv);
 
-	LOG("sample_type: %llx, disabled: %x\n", 
+	LOGL("sample_type: %llx, disabled: %x\n", 
 		event_attr->sample_type, 
 		event_attr->disabled);
 
-	LOG("task: %x, precise_ip: %x, sample_id_all: %x, "
+	LOGL("task: %x, precise_ip: %x, sample_id_all: %x, "
 	    "exclude_host: %x, exclude_guest: %x, "
 	    "exclude_callchain_user: %x, exclude_callchain_kernel: %x\n",
 	    event_attr->task, event_attr->precise_ip,
@@ -6966,13 +6954,13 @@ SYSCALL_DEFINE5(perf_event_open,
 	int move_group = 0;
 	int err;
 
-	LOG("in syscall\n");
+	LOGL("in syscall\n");
 	/* for future expandability... */
 	if (flags & ~PERF_FLAG_ALL)
 		return -EINVAL;
 
 	print_event_attr(attr_uptr);
-	LOG("pid %d, cpu %d, flags 0x%lx\n", pid, cpu, flags);
+	LOGL("pid %d, cpu %d, flags 0x%lx\n", pid, cpu, flags);
 
 	err = perf_copy_attr(attr_uptr, &attr);
 	if (err)
@@ -7020,7 +7008,7 @@ SYSCALL_DEFINE5(perf_event_open,
 		}
 	}
 
-	LOG("get online cpus..\n");
+	LOGL("get online cpus..\n");
 	get_online_cpus();
 
 	event = perf_event_alloc(&attr, cpu, task, group_leader, NULL,
@@ -7030,7 +7018,7 @@ SYSCALL_DEFINE5(perf_event_open,
 		goto err_task;
 	}
 
-	LOG("allocated a perf event\n");
+	LOGL("allocated a perf event\n");
 
 	if (flags & PERF_FLAG_PID_CGROUP) {
 		err = perf_cgroup_connect(pid, event, &attr, group_leader);
@@ -7047,7 +7035,7 @@ SYSCALL_DEFINE5(perf_event_open,
 	 * any hardware group.
 	 */
 	pmu = event->pmu;
-        LOG("accounted event\n");
+        LOGL("accounted event\n");
 
 	if (group_leader &&
 	    (is_software_event(event) != is_software_event(group_leader))) {
@@ -7072,17 +7060,17 @@ SYSCALL_DEFINE5(perf_event_open,
 		}
 	}
 
-        LOG("getting right context\n");
+        LOGL("getting right context\n");
 	/*
 	 * Get the target context (task or percpu):
 	 */
 	ctx = find_get_context(pmu, task, event->cpu);
 	if (IS_ERR(ctx)) {
-                LOG("could not found a context for %d\n", event->cpu);
+                LOGL("could not found a context for %d\n", event->cpu);
 		err = PTR_ERR(ctx);
 		goto err_alloc;
 	}
-        LOG("found context\n");
+        LOGL("found context\n");
 
 	if (task) {
 		put_task_struct(task);
@@ -7121,26 +7109,26 @@ SYSCALL_DEFINE5(perf_event_open,
 	}
 
 	if (output_event) {
-                LOG("got output event\n");
+                LOGL("got output event\n");
 		err = perf_event_set_output(event, output_event);
 		if (err) {
-                        LOG("could not set event output\n");
+                        LOGL("could not set event output\n");
 			goto err_context;
                 }
 	}
 
 	event_file = anon_inode_getfile("[perf_event]", &perf_fops, event, O_RDWR);
 	if (IS_ERR(event_file)) {
-		LOG("failed to get anon_inode_getfile\n");
+		LOGL("failed to get anon_inode_getfile\n");
 		err = PTR_ERR(event_file);
 		goto err_context;
 	}
-        LOG("created event_file\n");
+        LOGL("created event_file\n");
 
 	if (move_group) {
 		struct perf_event_context *gctx = group_leader->ctx;
 
-                LOG("move_group is on\n");
+                LOGL("move_group is on\n");
 		mutex_lock(&gctx->mutex);
 		perf_remove_from_context(group_leader);
 
@@ -7193,7 +7181,7 @@ SYSCALL_DEFINE5(perf_event_open,
 	perf_event__header_size(event);
 	perf_event__id_header_size(event);
 
-        LOG("precalculated sample_data sizes\n");
+        LOGL("precalculated sample_data sizes\n");
 
 	/*
 	 * Drop the reference on the group_event after placing the
@@ -7206,22 +7194,22 @@ SYSCALL_DEFINE5(perf_event_open,
 	return event_fd;
 
 err_context:
-        LOG("err_context detected\n");
+        LOGL("err_context detected\n");
 	perf_unpin_context(ctx);
 	put_ctx(ctx);
 err_alloc:
-        LOG("err_alloc detected\n");
+        LOGL("err_alloc detected\n");
 	free_event(event);
 err_task:
-        LOG("err_task detected\n");
+        LOGL("err_task detected\n");
 	put_online_cpus();
 	if (task)
 		put_task_struct(task);
 err_group_fd:
-        LOG("err_group_fd detected\n");
+        LOGL("err_group_fd detected\n");
 	fdput(group);
 err_fd:
-        LOG("err_fd detected\n");
+        LOGL("err_fd detected\n");
 	put_unused_fd(event_fd);
 	return err;
 }
@@ -7244,7 +7232,7 @@ perf_event_create_kernel_counter(struct perf_event_attr *attr, int cpu,
 	struct perf_event *event;
 	int err;
 
-	LOG("in perf_event_create_kernel_counter(cpu %d)\n", cpu);
+	LOGL("in perf_event_create_kernel_counter(cpu %d)\n", cpu);
 	/*
 	 * Get the target context (task or percpu):
 	 */
@@ -7811,7 +7799,7 @@ static void __init perf_event_init_all_cpus(void)
 	struct swevent_htable *swhash;
 	int cpu;
 
-	LOG("in perf_event_init_all_cpus()\n");
+	LOGL("in perf_event_init_all_cpus()\n");
 
 	for_each_possible_cpu(cpu) {
 		swhash = &per_cpu(swevent_htable, cpu);
@@ -7824,7 +7812,7 @@ static void perf_event_init_cpu(int cpu)
 {
 	struct swevent_htable *swhash = &per_cpu(swevent_htable, cpu);
 
-	LOG("in perf_event_init_cpu(%d)\n", cpu);
+	LOGL("in perf_event_init_cpu(%d)\n", cpu);
 
 	mutex_lock(&swhash->hlist_mutex);
 	if (swhash->hlist_refcount > 0) {
@@ -7938,7 +7926,7 @@ void __init perf_event_init(void)
 {
 	int ret;
 
-	LOG("in perf_event_init()\n");
+	LOGL("in perf_event_init()\n");
 	idr_init(&pmu_idr);
 
 	perf_event_init_all_cpus();
@@ -7971,7 +7959,7 @@ static int __init perf_event_sysfs_init(void)
 
 	mutex_lock(&pmus_lock);
 
-	LOG("in perf_event_sysfs_init()\n");
+	LOGL("in perf_event_sysfs_init()\n");
 	ret = bus_register(&pmu_bus);
 	if (ret)
 		goto unlock;

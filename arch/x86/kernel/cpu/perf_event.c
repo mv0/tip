@@ -1217,8 +1217,6 @@ int x86_pmu_handle_irq(struct pt_regs *regs)
 
 	cpuc = &__get_cpu_var(cpu_hw_events);
 
-        LOG("received IRQ\n");
-
 	/*
 	 * Some chipsets need to unmask the LVTPC in a particular spot
 	 * inside the nmi handler.  As a result, the unmasking was pushed
