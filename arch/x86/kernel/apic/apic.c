@@ -2113,11 +2113,27 @@ void disconnect_bsp_APIC(int virt_wire_setup)
 	apic_write(APIC_LVT1, value);
 }
 
-void generic_processor_info(int apicid, int version)
+void generic_processor_info(int apicid, bool isbsp, int version)
 {
 	int cpu, max = nr_cpu_ids;
 	bool boot_cpu_detected = physid_isset(boot_cpu_physical_apicid,
 				phys_cpu_present_map);
+
+	/*
+	 * If boot cpu is AP, we now don't have any way to initialize
+	 * BSP. To save memory consumed, we disable BSP this case and
+	 * use (N-1)-cpus.
+	 */
+	if (isbsp && !boot_cpu_is_bsp) {
+		int thiscpu = num_processors + disabled_cpus;
+
+		pr_warning("ACPI: The boot cpu is not BSP. "
+			   "The BSP Processor %d/0x%x ignored.\n",
+			   thiscpu, apicid);
+
+		disabled_cpus++;
+		return;
+	}
 
 	/*
 	 * If boot cpu has not been detected yet, then only allow upto

@@ -54,6 +54,7 @@ static void __init MP_processor_info(struct mpc_cpu *m)
 {
 	int apicid;
 	char *bootup_cpu = "";
+	bool isbsp = false;
 
 	if (!(m->cpuflag & CPU_ENABLED)) {
 		disabled_cpus++;
@@ -64,11 +65,21 @@ static void __init MP_processor_info(struct mpc_cpu *m)
 
 	if (m->cpuflag & CPU_BOOTPROCESSOR) {
 		bootup_cpu = " (Bootup-CPU)";
-		boot_cpu_physical_apicid = m->apicid;
+		/*
+		 * boot cpu cannot be BSP if any crash happens on AP
+		 * and kexec enters the 2nd kernel.
+		 *
+		 * Also, boot_cpu_physical_apicid can be initialized
+		 * before reaching here; for example, in
+		 * register_lapic_address().
+		 */
+		if (boot_cpu_is_bsp && boot_cpu_physical_apicid == -1U)
+			boot_cpu_physical_apicid = m->apicid;
+		isbsp = true;
 	}
 
 	printk(KERN_INFO "Processor #%d%s\n", m->apicid, bootup_cpu);
-	generic_processor_info(apicid, m->apicver);
+	generic_processor_info(apicid, isbsp, m->apicver);
 }
 
 #ifdef CONFIG_X86_IO_APIC

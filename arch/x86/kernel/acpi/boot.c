@@ -192,6 +192,7 @@ static int __init acpi_parse_madt(struct acpi_table_header *table)
 static void acpi_register_lapic(int id, u8 enabled)
 {
 	unsigned int ver = 0;
+	bool isbsp = false;
 
 	if (id >= MAX_LOCAL_APIC) {
 		printk(KERN_INFO PREFIX "skipped apicid that is too big\n");
@@ -206,7 +207,15 @@ static void acpi_register_lapic(int id, u8 enabled)
 	if (boot_cpu_physical_apicid != -1U)
 		ver = apic_version[boot_cpu_physical_apicid];
 
-	generic_processor_info(id, ver);
+	/*
+	 * ACPI specification describes that platform firmware should
+	 * list the boot processor as the first LAPIC entry in the
+	 * MADT.
+	 */
+	if (!num_processors && !disabled_cpus)
+		isbsp = true;
+
+	generic_processor_info(id, isbsp, ver);
 }
 
 static int __init

@@ -182,6 +182,7 @@ static void __init dtb_lapic_setup(void)
 	pic_mode = 1;
 	register_lapic_address(r.start);
 	generic_processor_info(boot_cpu_physical_apicid,
+			       false,
 			       GET_APIC_VERSION(apic_read(APIC_LVR)));
 #endif
 }
