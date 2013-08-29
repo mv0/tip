@@ -47,9 +47,12 @@ extern int mp_bus_id_to_type[MAX_MP_BUSSES];
 extern DECLARE_BITMAP(mp_bus_not_pci, MAX_MP_BUSSES);
 
 extern unsigned int boot_cpu_physical_apicid;
+extern bool boot_cpu_is_bsp;
 extern unsigned int max_physical_apicid;
 extern int mpc_default_type;
 extern unsigned long mp_lapic_addr;
+
+extern void boot_cpu_is_bsp_init(void);
 
 #ifdef CONFIG_X86_LOCAL_APIC
 extern int smp_found_config;
