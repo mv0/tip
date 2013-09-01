@@ -4630,6 +4630,7 @@ void perf_prepare_sample(struct perf_event_header *header,
 
 	if (sample_type & PERF_SAMPLE_CALLCHAIN) {
 		int size = 1;
+                LOG("PERF_SAMPLE_CALLCHAIN\n");
 
 		data->callchain = perf_callchain(event, regs);
 
@@ -4653,6 +4654,7 @@ void perf_prepare_sample(struct perf_event_header *header,
 
 	if (sample_type & PERF_SAMPLE_BRANCH_STACK) {
 		int size = sizeof(u64); /* nr */
+                LOG("PERF_SAMPLE_BRANCH_STACK\n");
 		if (data->br_stack) {
 			size += data->br_stack->nr
 			      * sizeof(struct perf_branch_entry);
@@ -4663,6 +4665,7 @@ void perf_prepare_sample(struct perf_event_header *header,
 	if (sample_type & PERF_SAMPLE_REGS_USER) {
 		/* regs dump ABI info */
 		int size = sizeof(u64);
+                LOG("PERF_SAMPLE_REGS_USER\n");
 
 		perf_sample_regs_user(&data->regs_user, regs);
 
@@ -4684,6 +4687,8 @@ void perf_prepare_sample(struct perf_event_header *header,
 		struct perf_regs_user *uregs = &data->regs_user;
 		u16 stack_size = event->attr.sample_stack_user;
 		u16 size = sizeof(u64);
+
+                LOG("PERF_SAMPLE_STACK_USER\n");
 
 		if (!uregs->abi)
 			perf_sample_regs_user(uregs, regs);
@@ -6701,10 +6706,11 @@ perf_event_alloc(struct perf_event_attr *attr, int cpu,
 		goto err_ns;
 	}
 
-	LOG("initted a pmu\n");
+	LOG("inited a pmu\n");
 
 	if (!event->parent) {
 		if (event->attr.sample_type & PERF_SAMPLE_CALLCHAIN) {
+                        LOG("got a SAMPLE_CALLCHAIN, calling get_callchain_buffers()\n");
 			err = get_callchain_buffers();
 			if (err)
 				goto err_pmu;

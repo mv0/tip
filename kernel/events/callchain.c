@@ -178,7 +178,6 @@ perf_callchain(struct perf_event *event, struct pt_regs *regs)
 
 	entry->nr = 0;
 
-#if 0
 	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
 		if (!perf_guest_cbs->is_user_mode()) {
 			LOG("GUEST KERNEL context\n");
@@ -191,7 +190,6 @@ perf_callchain(struct perf_event *event, struct pt_regs *regs)
 		}
 		goto exit_put;
 	}
-#endif
 	if (kernel && !user_mode(regs)) {
 #if 0
 		if (perf_guest_cbs && perf_guest_cbs->is_in_guest())

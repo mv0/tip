@@ -1934,31 +1934,22 @@ static const struct stacktrace_ops backtrace_ops = {
 void
 perf_callchain_kernel(struct perf_callchain_entry *entry, struct pt_regs *regs)
 {
-	struct pt_regs *gregs = NULL;
 
 	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
-#if 0
-		if (!perf_guest_cbs->is_user_mode()) {
-			LOG("in guest, kernel mode\n");
-
-			LOG("guest has rip 0x%lx\n", 
-				perf_guest_cbs->get_guest_ip());
-
-			gregs = perf_guest_cbs->get_guest_regs();
-			if (!gregs)
-				return;
-
-			regs = gregs;
-		}
-#endif
+                if (!perf_guest_cbs->is_user_mode()) {
+                        LOGL("storing guest kernel IP\n");
+                        perf_callchain_store(entry, perf_guest_cbs->get_guest_ip());
+                        return;
+                } else {
+                        LOGL("got guest user-space instead of kernel-space\n");
+                        return;
+                }
 	}
 
 	perf_callchain_store(entry, regs->ip);
 
 	dump_trace(NULL, regs, NULL, 0, &backtrace_ops, entry);
 
-	if (gregs)
-		kfree(gregs);
 }
 
 static inline int
@@ -2048,20 +2039,14 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 	struct pt_regs *gregs = NULL;
 
 	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
-#if 0
 		if (perf_guest_cbs->is_user_mode()) {
-			LOG("in guest, user mode\n");
-
-			LOG("guest has rip 0x%lx\n", 
-				perf_guest_cbs->get_guest_ip());
-
-			gregs = perf_guest_cbs->get_guest_regs();
-			if (!gregs)
-				return;
-
-			regs = gregs;
-		}
-#endif
+                        LOGL("storing guest user-space IP\n");
+                        perf_callchain_store(entry, perf_guest_cbs->get_guest_ip());
+                        return;
+		} else {
+                        LOGL("got kernel-space instead of guest user-space\n");
+                        return;
+                }
 	}
 
 	/*
@@ -2099,8 +2084,6 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 		perf_callchain_store(entry, frame.return_address);
 		fp = frame.next_frame;
 	}
-	if (gregs)
-		kfree(gregs);
 }
 
 /*
