@@ -45,7 +45,7 @@ struct perf_guest_info_callbacks {
 	int				(*is_user_mode)(void);
 	unsigned long			(*get_guest_ip)(void);
 	struct pt_regs			*(*get_guest_regs)(void);
-	void				(*get_guest_current)(void);
+	struct task_struct 		*(*get_guest_current)(void);
 	void				(*get_guest_current2)(void);
 };
 

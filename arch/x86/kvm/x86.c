@@ -5606,7 +5606,7 @@ static int get_current_guest_tsk(struct kvm_vcpu *vcpu,
 }
 
 
-static void kvm_get_guest_current(void)
+static struct task_struct *kvm_get_guest_current(void)
 {
 	struct kvm_vcpu *vcpu = NULL;
         struct task_struct *curr_tsk = NULL;
@@ -5616,13 +5616,13 @@ static void kvm_get_guest_current(void)
 
 	if (!kvm_is_in_guest()) {
 		LOG("### not in guest\n");
-		return;
+		return NULL;
 	}
 
         /* makes no sense to get pid 0 */
 	if (!kvm_is_user_mode()) {
 		LOG("########## not in user-space\n");
-                return;
+                return NULL;
 	}
 
 	kpgd = kvm_read_cr3(vcpu);
@@ -5632,21 +5632,20 @@ static void kvm_get_guest_current(void)
         /* this will hold on the current task from guest */
         curr_tsk = kzalloc(sizeof(*curr_tsk), GFP_KERNEL);
         if (!curr_tsk) {
-                return;
+                return NULL;
         }
 
         if (get_current_guest_tsk(vcpu, curr_tsk)) {
                 LOG("failed to get current tsk\n");
-                goto out;
+                return NULL;
         }
 
 
         LOG(">>>\n");
         LOG("comm: %s\n", curr_tsk->comm);
         LOG("pid: %d\n", curr_tsk->pid);
-out:
-        if (curr_tsk)
-                kfree(curr_tsk);
+
+        return curr_tsk;
 }
 
 
