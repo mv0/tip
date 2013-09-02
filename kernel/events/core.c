@@ -4517,8 +4517,6 @@ void perf_output_sample(struct perf_output_handle *handle,
 		if (data->callchain) {
 			int size = 1;
 
-                        LOG("got PERF_SAMPLE_CALLCHAIN data->callchain\n");
-
 			if (data->callchain)
 				size += data->callchain->nr;
 
@@ -4527,7 +4525,6 @@ void perf_output_sample(struct perf_output_handle *handle,
 			__output_copy(handle, data->callchain, size);
 		} else {
 			u64 nr = 0;
-                        LOG("failed to get data->callchain\n");
 			perf_output_put(handle, nr);
 		}
 	}
@@ -4638,7 +4635,6 @@ void perf_prepare_sample(struct perf_event_header *header,
 		data->callchain = perf_callchain(event, regs);
 
 		if (data->callchain) {
-                        LOG("got %d nrs\n", data->callchain->nr);
 			size += data->callchain->nr;
                 }
 
@@ -4659,7 +4655,7 @@ void perf_prepare_sample(struct perf_event_header *header,
 
 	if (sample_type & PERF_SAMPLE_BRANCH_STACK) {
 		int size = sizeof(u64); /* nr */
-                LOG("PERF_SAMPLE_BRANCH_STACK\n");
+                LOGK("preparing, PERF_SAMPLE_BRANCH_STACK\n");
 		if (data->br_stack) {
 			size += data->br_stack->nr
 			      * sizeof(struct perf_branch_entry);
@@ -5321,10 +5317,8 @@ static int __perf_event_overflow(struct perf_event *event,
 	}
 
 	if (event->overflow_handler) {
-                LOG("invoking event->overflow\n");
 		event->overflow_handler(event, data, regs);
         } else {
-                LOG("invoking perf_event_output\n");
 		perf_event_output(event, data, regs);
         }
 
@@ -5340,7 +5334,6 @@ int perf_event_overflow(struct perf_event *event,
 			  struct perf_sample_data *data,
 			  struct pt_regs *regs)
 {
-        LOG("overflow!\n");
 	return __perf_event_overflow(event, 1, data, regs);
 }
 
@@ -6801,14 +6794,18 @@ static int perf_copy_attr(struct perf_event_attr __user *uattr,
 
 	if (attr->sample_type & PERF_SAMPLE_BRANCH_STACK) {
 		u64 mask = attr->branch_sample_type;
+                LOGK("giving branch_stack\n");
 
 		/* only using defined bits */
-		if (mask & ~(PERF_SAMPLE_BRANCH_MAX-1))
+		if (mask & ~(PERF_SAMPLE_BRANCH_MAX-1)) {
+                        LOGK("only defined bits\n");
 			return -EINVAL;
-
+                }
 		/* at least one branch bit must be set */
-		if (!(mask & ~PERF_SAMPLE_BRANCH_PLM_ALL))
+		if (!(mask & ~PERF_SAMPLE_BRANCH_PLM_ALL)) {
+                        LOGK("at least one branch bit must be set\n");
 			return -EINVAL;
+                }
 
 		/* propagate priv level, when not set for branch */
 		if (!(mask & PERF_SAMPLE_BRANCH_PLM_ALL)) {
@@ -6932,18 +6929,18 @@ out:
 static void print_event_attr(struct perf_event_attr __user *event_attr)
 {
 
-	LOG("event attr\n");
-	LOG("type: %u, size: %u, config: %llx, exclude_user: %x, "
+	LOGK("event attr\n");
+	LOGK("type: %u, size: %u, config: %llx, exclude_user: %x, "
 	    "exclude_kernel: %x, exclude_hv: %x\n",
 	    event_attr->type, event_attr->size,
 	    event_attr->config, event_attr->exclude_user,
 	    event_attr->exclude_kernel, event_attr->exclude_hv);
 
-	LOG("sample_type: %llx, disabled: %x\n", 
+	LOGK("sample_type: %llx, disabled: %x\n", 
 		event_attr->sample_type, 
 		event_attr->disabled);
 
-	LOG("task: %x, precise_ip: %x, sample_id_all: %x, "
+	LOGK("task: %x, precise_ip: %x, sample_id_all: %x, "
 	    "exclude_host: %x, exclude_guest: %x, "
 	    "exclude_callchain_user: %x, exclude_callchain_kernel: %x\n",
 	    event_attr->task, event_attr->precise_ip,
@@ -6952,6 +6949,14 @@ static void print_event_attr(struct perf_event_attr __user *event_attr)
 	    event_attr->exclude_guest, 
 	    event_attr->exclude_callchain_user,
 	    event_attr->exclude_callchain_kernel);
+
+        if (event_attr->sample_type & PERF_SAMPLE_CALLCHAIN) {
+                LOGK("callchain activating\n");
+        }
+        if (event_attr->sample_type & PERF_SAMPLE_BRANCH_STACK) {
+                LOGK("branch-stack activated\n");
+                LOGK("branch_sample_type: %llx\n", event_attr->branch_sample_type);
+        }
 }
 
 /**
@@ -6978,17 +6983,19 @@ SYSCALL_DEFINE5(perf_event_open,
 	int move_group = 0;
 	int err;
 
-	LOG("in syscall\n");
+	LOGK("in syscall\n");
 	/* for future expandability... */
 	if (flags & ~PERF_FLAG_ALL)
 		return -EINVAL;
 
 	print_event_attr(attr_uptr);
-	LOG("pid %d, cpu %d, flags 0x%lx\n", pid, cpu, flags);
+	LOGK("pid %d, cpu %d, flags 0x%lx\n", pid, cpu, flags);
 
 	err = perf_copy_attr(attr_uptr, &attr);
-	if (err)
+	if (err) {
+                LOGK("failed to copy attrs\n");
 		return err;
+        }
 
 	if (!attr.exclude_kernel) {
 		if (perf_paranoid_kernel() && !capable(CAP_SYS_ADMIN))
@@ -7032,7 +7039,7 @@ SYSCALL_DEFINE5(perf_event_open,
 		}
 	}
 
-	LOG("get online cpus..\n");
+	LOGK("get online cpus..\n");
 	get_online_cpus();
 
 	event = perf_event_alloc(&attr, cpu, task, group_leader, NULL,
@@ -7042,7 +7049,7 @@ SYSCALL_DEFINE5(perf_event_open,
 		goto err_task;
 	}
 
-	LOG("allocated a perf event\n");
+	LOGK("allocated a perf event\n");
 
 	if (flags & PERF_FLAG_PID_CGROUP) {
 		err = perf_cgroup_connect(pid, event, &attr, group_leader);
@@ -7059,7 +7066,7 @@ SYSCALL_DEFINE5(perf_event_open,
 	 * any hardware group.
 	 */
 	pmu = event->pmu;
-        LOG("accounted event\n");
+        LOGK("accounted event\n");
 
 	if (group_leader &&
 	    (is_software_event(event) != is_software_event(group_leader))) {
@@ -7084,17 +7091,17 @@ SYSCALL_DEFINE5(perf_event_open,
 		}
 	}
 
-        LOG("getting right context\n");
+        LOGK("getting right context\n");
 	/*
 	 * Get the target context (task or percpu):
 	 */
 	ctx = find_get_context(pmu, task, event->cpu);
 	if (IS_ERR(ctx)) {
-                LOG("could not found a context for %d\n", event->cpu);
+                LOGK("could not found a context for %d\n", event->cpu);
 		err = PTR_ERR(ctx);
 		goto err_alloc;
 	}
-        LOG("found context\n");
+        LOGK("found context\n");
 
 	if (task) {
 		put_task_struct(task);
@@ -7133,26 +7140,26 @@ SYSCALL_DEFINE5(perf_event_open,
 	}
 
 	if (output_event) {
-                LOG("got output event\n");
+                LOGK("got output event\n");
 		err = perf_event_set_output(event, output_event);
 		if (err) {
-                        LOG("could not set event output\n");
+                        LOGK("could not set event output\n");
 			goto err_context;
                 }
 	}
 
 	event_file = anon_inode_getfile("[perf_event]", &perf_fops, event, O_RDWR);
 	if (IS_ERR(event_file)) {
-		LOG("failed to get anon_inode_getfile\n");
+		LOGK("failed to get anon_inode_getfile\n");
 		err = PTR_ERR(event_file);
 		goto err_context;
 	}
-        LOG("created event_file\n");
+        LOGK("created event_file\n");
 
 	if (move_group) {
 		struct perf_event_context *gctx = group_leader->ctx;
 
-                LOG("move_group is on\n");
+                LOGK("move_group is on\n");
 		mutex_lock(&gctx->mutex);
 		perf_remove_from_context(group_leader);
 
@@ -7205,7 +7212,7 @@ SYSCALL_DEFINE5(perf_event_open,
 	perf_event__header_size(event);
 	perf_event__id_header_size(event);
 
-        LOG("precalculated sample_data sizes\n");
+        LOGK("precalculated sample_data sizes\n");
 
 	/*
 	 * Drop the reference on the group_event after placing the
@@ -7218,22 +7225,22 @@ SYSCALL_DEFINE5(perf_event_open,
 	return event_fd;
 
 err_context:
-        LOG("err_context detected\n");
+        LOGK("err_context detected\n");
 	perf_unpin_context(ctx);
 	put_ctx(ctx);
 err_alloc:
-        LOG("err_alloc detected\n");
+        LOGK("err_alloc detected\n");
 	free_event(event);
 err_task:
-        LOG("err_task detected\n");
+        LOGK("err_task detected\n");
 	put_online_cpus();
 	if (task)
 		put_task_struct(task);
 err_group_fd:
-        LOG("err_group_fd detected\n");
+        LOGK("err_group_fd detected\n");
 	fdput(group);
 err_fd:
-        LOG("err_fd detected\n");
+        LOGK("err_fd detected\n");
 	put_unused_fd(event_fd);
 	return err;
 }

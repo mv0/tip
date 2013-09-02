@@ -1971,8 +1971,6 @@ static unsigned long get_segment_base(unsigned int segment)
 	struct desc_struct *desc;
 	int idx = segment >> 3;
 
-	LOG("getting segment base...\n");
-
 	if ((segment & SEGMENT_TI_MASK) == SEGMENT_LDT) {
 		if (idx > LDT_ENTRIES)
 			return 0;
@@ -2044,7 +2042,6 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 {
 	struct stack_frame frame;
 	const void __user *fp;
-	struct pt_regs *gregs = NULL;
 
 	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
 		if (perf_guest_cbs->is_user_mode()) {
