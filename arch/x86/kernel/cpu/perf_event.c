@@ -1934,21 +1934,29 @@ static const struct stacktrace_ops backtrace_ops = {
 void
 perf_callchain_kernel(struct perf_callchain_entry *entry, struct pt_regs *regs)
 {
+        struct pt_regs *guest_regs = NULL;
 
 	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
                 if (!perf_guest_cbs->is_user_mode()) {
-                        LOGL("storing guest kernel IP\n");
-                        perf_callchain_store(entry, perf_guest_cbs->get_guest_ip());
-                        return;
+                        LOG("storing guest kernel IP\n");
+                        regs->ip = perf_guest_cbs->get_guest_ip();
+                        guest_regs = perf_guest_cbs->get_guest_regs();
+                        regs = guest_regs; 
                 } else {
-                        LOGL("got guest user-space instead of kernel-space\n");
+                        LOG("got guest user-space instead of kernel-space\n");
                         return;
                 }
 	}
 
 	perf_callchain_store(entry, regs->ip);
-
 	dump_trace(NULL, regs, NULL, 0, &backtrace_ops, entry);
+
+	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
+                if (!perf_guest_cbs->is_user_mode()) {
+                        if (guest_regs)
+                                kfree(guest_regs);
+                }
+        }
 
 }
 
@@ -2040,11 +2048,11 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 
 	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
 		if (perf_guest_cbs->is_user_mode()) {
-                        LOGL("storing guest user-space IP\n");
+                        LOG("storing guest user-space IP\n");
                         perf_callchain_store(entry, perf_guest_cbs->get_guest_ip());
                         return;
 		} else {
-                        LOGL("got kernel-space instead of guest user-space\n");
+                        LOG("got kernel-space instead of guest user-space\n");
                         return;
                 }
 	}

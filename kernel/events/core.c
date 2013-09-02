@@ -4517,6 +4517,8 @@ void perf_output_sample(struct perf_output_handle *handle,
 		if (data->callchain) {
 			int size = 1;
 
+                        LOG("got PERF_SAMPLE_CALLCHAIN data->callchain\n");
+
 			if (data->callchain)
 				size += data->callchain->nr;
 
@@ -4525,6 +4527,7 @@ void perf_output_sample(struct perf_output_handle *handle,
 			__output_copy(handle, data->callchain, size);
 		} else {
 			u64 nr = 0;
+                        LOG("failed to get data->callchain\n");
 			perf_output_put(handle, nr);
 		}
 	}
@@ -4624,18 +4627,20 @@ void perf_prepare_sample(struct perf_event_header *header,
 	__perf_event_header__init_id(header, data, event);
 
 	if (sample_type & PERF_SAMPLE_IP) {
-		LOG("PERF_SAMPLE_IP\n");
+		LOG("preparing, PERF_SAMPLE_IP\n");
 		data->ip = perf_instruction_pointer(regs);
 	}
 
 	if (sample_type & PERF_SAMPLE_CALLCHAIN) {
 		int size = 1;
-                LOG("PERF_SAMPLE_CALLCHAIN\n");
+                LOG("preparing, PERF_SAMPLE_CALLCHAIN\n");
 
 		data->callchain = perf_callchain(event, regs);
 
-		if (data->callchain)
+		if (data->callchain) {
+                        LOG("got %d nrs\n", data->callchain->nr);
 			size += data->callchain->nr;
+                }
 
 		header->size += size * sizeof(u64);
 	}

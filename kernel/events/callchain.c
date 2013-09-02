@@ -191,11 +191,6 @@ perf_callchain(struct perf_event *event, struct pt_regs *regs)
 		goto exit_put;
 	}
 	if (kernel && !user_mode(regs)) {
-#if 0
-		if (perf_guest_cbs && perf_guest_cbs->is_in_guest())
-			perf_callchain_store(entry, PERF_CONTEXT_GUEST_KERNEL);
-		else
-#endif
 		perf_callchain_store(entry, PERF_CONTEXT_KERNEL);
 		perf_callchain_kernel(entry, regs);
 	}
