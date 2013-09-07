@@ -103,7 +103,8 @@ static int perf_top__parse_source(struct perf_top *top, struct hist_entry *he)
 	/*
 	 * We can't annotate with just /proc/kallsyms
 	 */
-	if (map->dso->symtab_type == DSO_BINARY_TYPE__KALLSYMS) {
+	if (map->dso->symtab_type == DSO_BINARY_TYPE__KALLSYMS &&
+	    !dso__is_kcore(map->dso)) {
 		pr_err("Can't annotate %s: No vmlinux file was found in the "
 		       "path\n", sym->name);
 		sleep(1);
@@ -237,8 +238,6 @@ static void perf_top__show_details(struct perf_top *top)
 out_unlock:
 	pthread_mutex_unlock(&notes->lock);
 }
-
-static const char		CONSOLE_CLEAR[] = "[H[2J";
 
 static struct hist_entry *perf_evsel__add_hist_entry(struct perf_evsel *evsel,
 						     struct addr_location *al,
@@ -690,7 +689,7 @@ static void perf_event__process_sample(struct perf_tool *tool,
 {
 	struct perf_top *top = container_of(tool, struct perf_top, tool);
 	struct symbol *parent = NULL;
-	u64 ip = event->ip.ip;
+	u64 ip = sample->ip;
 	struct addr_location al;
 	int err;
 
@@ -700,10 +699,10 @@ static void perf_event__process_sample(struct perf_tool *tool,
 		if (!seen)
 			seen = intlist__new(NULL);
 
-		if (!intlist__has_entry(seen, event->ip.pid)) {
+		if (!intlist__has_entry(seen, sample->pid)) {
 			pr_err("Can't find guest [%d]'s kernel information\n",
-				event->ip.pid);
-			intlist__add(seen, event->ip.pid);
+				sample->pid);
+			intlist__add(seen, sample->pid);
 		}
 		return;
 	}
@@ -717,8 +716,7 @@ static void perf_event__process_sample(struct perf_tool *tool,
 	if (event->header.misc & PERF_RECORD_MISC_EXACT_IP)
 		top->exact_samples++;
 
-	if (perf_event__preprocess_sample(event, machine, &al, sample,
-					  symbol_filter) < 0 ||
+	if (perf_event__preprocess_sample(event, machine, &al, sample) < 0 ||
 	    al.filtered)
 		return;
 
@@ -838,7 +836,8 @@ static void perf_top__mmap_read_idx(struct perf_top *top, int idx)
 			break;
 		case PERF_RECORD_MISC_GUEST_KERNEL:
 			++top->guest_kernel_samples;
-			machine = perf_session__find_machine(session, event->ip.pid);
+			machine = perf_session__find_machine(session,
+							     sample.pid);
 			break;
 		case PERF_RECORD_MISC_GUEST_USER:
 			++top->guest_us_samples;
@@ -938,6 +937,8 @@ static int __cmd_top(struct perf_top *top)
 	top->session = perf_session__new(NULL, O_WRONLY, false, false, NULL);
 	if (top->session == NULL)
 		return -ENOMEM;
+
+	machines__set_symbol_filter(&top->session->machines, symbol_filter);
 
 	if (!objdump_path) {
 		ret = perf_session_env__lookup_objdump(&top->session->header.env);

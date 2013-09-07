@@ -100,6 +100,18 @@ static struct test {
 	},
 #endif
 	{
+		.desc = "Test object code reading",
+		.func = test__code_reading,
+	},
+	{
+		.desc = "Test sample parsing",
+		.func = test__sample_parsing,
+	},
+	{
+		.desc = "Test using a dummy software event to keep tracking",
+		.func = test__keep_tracking,
+	},
+	{
 		.func = NULL,
 	},
 };
