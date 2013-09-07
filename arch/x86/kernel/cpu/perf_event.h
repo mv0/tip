@@ -346,7 +346,7 @@ union x86_pmu_config {
 	u64 value;
 };
 
-#define X86_CONFIG(args...) ((union x86_pmu_config){.bits = {args}}).value
+#define X86_CONFIG(args...) ((union x86_pmu_config) { .bits = {args} }).value
 
 /*
  * struct x86_pmu - generic x86 pmu

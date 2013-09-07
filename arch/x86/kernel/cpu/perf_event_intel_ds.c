@@ -642,6 +642,7 @@ void intel_pmu_pebs_enable(struct perf_event *event)
 	hwc->config &= ~ARCH_PERFMON_EVENTSEL_INT;
 
 	cpuc->pebs_enabled |= 1ULL << hwc->idx;
+        LOGL("pebs_enabled with %llx\n", cpuc->pebs_enabled);
 
 	if (event->hw.flags & PERF_X86_EVENT_PEBS_LDLAT)
 		cpuc->pebs_enabled |= 1ULL << (hwc->idx + 32);
@@ -670,6 +671,8 @@ void intel_pmu_pebs_disable(struct perf_event *event)
 void intel_pmu_pebs_enable_all(void)
 {
 	struct cpu_hw_events *cpuc = &__get_cpu_var(cpu_hw_events);
+
+        LOGL("enableing PEBS with %llx\n", cpuc->pebs_enabled);
 
 	if (cpuc->pebs_enabled)
 		wrmsrl(MSR_IA32_PEBS_ENABLE, cpuc->pebs_enabled);
