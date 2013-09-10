@@ -187,3 +187,4 @@ x86/trace
 x86/jumplabel
 x86/fb
 x86/asmlinkage
+x86/uaccess
