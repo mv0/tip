@@ -83,6 +83,7 @@ __read_mostly int sched_clock_running;
 
 #ifdef CONFIG_HAVE_UNSTABLE_SCHED_CLOCK
 __read_mostly int sched_clock_stable;
+EXPORT_SYMBOL_GPL(sched_clock_stable);
 
 struct sched_clock_data {
 	u64			tick_raw;

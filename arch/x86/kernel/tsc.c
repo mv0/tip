@@ -613,6 +613,8 @@ EXPORT_SYMBOL(recalibrate_cpu_khz);
 
 DEFINE_PER_CPU(unsigned long, cyc2ns);
 DEFINE_PER_CPU(unsigned long long, cyc2ns_offset);
+EXPORT_SYMBOL_GPL(cyc2ns);
+EXPORT_SYMBOL_GPL(cyc2ns_offset);
 
 static void set_cyc2ns_scale(unsigned long cpu_khz, int cpu)
 {
