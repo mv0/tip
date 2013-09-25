@@ -162,6 +162,7 @@ void free_uid(struct user_struct *up)
 	else
 		local_irq_restore(flags);
 }
+EXPORT_SYMBOL_GPL(free_uid);
 
 struct user_struct *alloc_uid(kuid_t uid)
 {
