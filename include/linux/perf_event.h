@@ -16,7 +16,7 @@
 
 #include <linux/ratelimit.h>
 
-#define DEBUG_PERF 1
+#define DEBUG_PERF 0
 
 #if DEBUG_PERF
 #define RLOG(level, fmt, args...)       do { printk(level "%s:%d " fmt, __FUNCTION__, __LINE__, ##args); } while (0)
@@ -26,6 +26,7 @@
 #else
 #define RLOG(level, fmt, args...)       do {} while (0)
 #define LOG(format, args...)            do {} while (0)
+#define LOGL(fmt, args...)              do {} while (0)
 #endif
 
 #define LOGK(fmt, args...)       do { printk(KERN_DEBUG "%s:%d " fmt, __FUNCTION__, __LINE__, ##args); } while (0)
