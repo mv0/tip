@@ -51,6 +51,15 @@ struct perf_guest_info_callbacks {
 	void				(*get_guest_current2)(void);
 };
 
+struct guest_callbacks {
+	int				(*is_in_guest)(void);
+	int				(*is_user_mode)(void);
+	unsigned long			(*get_guest_ip)(void);
+	struct pt_regs			*(*get_guest_regs)(void);
+	struct task_struct 		*(*get_guest_current)(void);
+	void				(*get_guest_current2)(void);
+};
+
 #ifdef CONFIG_HAVE_HW_BREAKPOINT
 #include <asm/hw_breakpoint.h>
 #endif
@@ -681,8 +690,12 @@ static inline void perf_event_task_sched_out(struct task_struct *prev,
 
 extern void perf_event_mmap(struct vm_area_struct *vma);
 extern struct perf_guest_info_callbacks *perf_guest_cbs;
+
 extern int perf_register_guest_info_callbacks(struct perf_guest_info_callbacks *callbacks);
 extern int perf_unregister_guest_info_callbacks(struct perf_guest_info_callbacks *callbacks);
+
+extern int nmi_register_guest_cbs(struct guest_callbacks *callbacks);
+extern int nmi_unregister_guest_cbs(struct guest_callbacks *callbacks);
 
 extern void perf_event_comm(struct task_struct *tsk);
 extern void perf_event_fork(struct task_struct *tsk);

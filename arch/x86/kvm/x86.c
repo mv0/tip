@@ -3605,12 +3605,12 @@ static int remove_fds(int fd, struct list_head *head)
 {
         struct perf_event_fd *pos, *tmp;
         int r = 1;
-        LOG("got fd %d to remove from list\n", fd);
+        LOGK("got fd %d to remove from list\n", fd);
 
         mutex_lock(&perf_event_fd_lock);
         list_for_each_entry_safe(pos, tmp, &perf_fds, list) {
                 if (fd == pos->fd) {
-                        LOG("found %d fd to remove from list\n", fd);
+                        LOGK("found %d fd to remove from list\n", fd);
                         list_del(&pos->list);
                         kfree(pos);
                         r = 0;
@@ -3887,11 +3887,11 @@ long kvm_arch_vm_ioctl(struct file *filp,
 		break;
 	}
 	case KVM_START_SYSCALL_TRACE: {
-		LOG("start syscall trace\n");
+		LOGK("start syscall trace\n");
 		break;
 	}
 	case KVM_STOP_SYSCALL_TRACE: {
-		LOG("stop syscall trace\n");
+		LOGK("stop syscall trace\n");
 		break;
 	}
 	case KVM_START_USERSPACE_TRACE: {
@@ -3899,24 +3899,24 @@ long kvm_arch_vm_ioctl(struct file *filp,
 		struct perf_event_fd *pfd;
 		r = -EFAULT;
 
-		LOG("setting user-space tracing..\n");
+		LOGK("setting user-space tracing..\n");
 
 		if (copy_from_user(&utrace, argp, sizeof(struct trace_userspace))) {
-			LOG("failed to get data userspace data\n");
+			LOGK("failed to get data userspace data\n");
 			goto out;
 		}
 #if 0
-		LOG("event attr\n");
-		LOG("type: %u, size: %u, config: %llx, exclude_user: %x, "
+		LOGK("event attr\n");
+		LOGK("type: %u, size: %u, config: %llx, exclude_user: %x, "
 		    "exclude_kernel: %x, exclude_hv: %x\n",
 		    utrace.event_attr->type, utrace.event_attr->size,
 		    utrace.event_attr->config, utrace.event_attr->exclude_user,
 		    utrace.event_attr->exclude_kernel, utrace.event_attr->exclude_hv);
 
-		LOG("sample_type: %llx, disabled: %x\n", 
+		LOGK("sample_type: %llx, disabled: %x\n", 
                         utrace.event_attr->sample_type, utrace.event_attr->disabled);
 
-		LOG("task: %x, precise_ip: %x, sample_id_all: %x, "
+		LOGK("task: %x, precise_ip: %x, sample_id_all: %x, "
 		    "exclude_host: %x, exclude_guest: %x, "
 		    "exclude_callchain_user: %x, exclude_callchain_kernel: %x\n",
 		    utrace.event_attr->task, utrace.event_attr->precise_ip,
@@ -3926,7 +3926,7 @@ long kvm_arch_vm_ioctl(struct file *filp,
                     utrace.event_attr->exclude_callchain_user,
 		    utrace.event_attr->exclude_callchain_kernel);
 
-		LOG("pid %d, cpu %d, flags 0x%lx\n",
+		LOGK("pid %d, cpu %d, flags 0x%lx\n",
 			utrace.pid, utrace.cpu, utrace.flags);
 
 #endif
@@ -3934,7 +3934,7 @@ long kvm_arch_vm_ioctl(struct file *filp,
 					utrace.cpu, utrace.group_fd, utrace.flags);
 
 		if (r < 0) {
-			LOG("failed to get fd...\n");
+			LOGK("failed to get fd...\n");
 			break;
 		}
 		pfd = perf_event_init_fd();
@@ -3944,8 +3944,8 @@ long kvm_arch_vm_ioctl(struct file *filp,
 		list_add_tail(&pfd->list, &perf_fds);
 		spin_unlock(&pfd->lock);
 
-		LOG("got event fd %d\n", pfd->fd);
-		LOG("starting user-space tracing..\n");
+		LOGK("got event fd %d\n", pfd->fd);
+		LOGK("starting user-space tracing..\n");
 
 		break;
 	}
@@ -3968,13 +3968,13 @@ long kvm_arch_vm_ioctl(struct file *filp,
                 r = -EFAULT;
                 
                 if (copy_from_user(&entries, argp, sizeof(struct entry))) {
-                        LOG("failed to copy from us\n");
+                        LOGK("failed to copy from us\n");
                         break;
                 }
 
                 /* us should allocate some space for it */
                 if (entries.fds == NULL) {
-                        LOG("invalid user-space\n");
+                        LOGK("invalid user-space\n");
                         break;
                 }
 
@@ -3982,9 +3982,9 @@ long kvm_arch_vm_ioctl(struct file *filp,
                 /* copy it back to us */
                 list_for_each_entry(pos, &perf_fds, list) {
                         *uptr = pos->fd;
-                        LOG("giving back to us fd %d\n", *uptr);
+                        LOGK("giving back to us fd %d\n", *uptr);
                         if (copy_to_user(argp, &uptr, sizeof(int *))) {
-                                LOG("failed to copy to us\n");
+                                LOGK("failed to copy to us\n");
                                 break;
                         }
                         uptr++;
@@ -4002,16 +4002,16 @@ long kvm_arch_vm_ioctl(struct file *filp,
 		int fd;
 		r = -EFAULT;
 
-                LOG("stopping user-space trace\n");
+                LOGK("stopping user-space trace\n");
                 if (copy_from_user(&fd, argp, sizeof(int *))) {
-                        LOG("failed to copy from user\n");
+                        LOGK("failed to copy from user\n");
                         goto out;
                 }
-                LOG("got %d to remove from list\n", fd);
+                LOGK("got %d to remove from list\n", fd);
                 if (remove_fds(fd, &perf_fds)) {
-                        LOG("could not remove %d fd. Is it still active?\n", fd);
+                        LOGK("could not remove %d fd. Is it still active?\n", fd);
                 }
-                LOG("successfully removed %d from list\n", fd);
+                LOGK("successfully removed %d from list\n", fd);
 
 		r = 0;
 		break;
@@ -5457,7 +5457,7 @@ static unsigned long kvm_get_guest_ip(void)
 
 static void print_segment(const char *seg_name, struct kvm_segment *seg)
 {
-	LOG("segment %s, base: 0x%llx, limit: 0x%x, "
+	LOGK("segment %s, base: 0x%llx, limit: 0x%x, "
 	    "selector: 0x%u, type: 0x%u, present: 0x%u, dpl: 0x%u\n",
 	    seg_name, seg->base, seg->limit, 
 	    seg->selector, seg->type, 
@@ -5549,7 +5549,7 @@ static int get_current_guest_tsk(struct kvm_vcpu *vcpu,
 
         kvm_x86_ops->get_msr(vcpu, MSR_KERNEL_GS_BASE, &gs_base);
         if (!gs_base) {
-                LOG("!invalid gs base %llx, failing back to hardcoded value\n", gs_base);
+                LOGK("!invalid gs base %llx, failing back to hardcoded value\n", gs_base);
                 /*
                  * this will likely fail if we change the size of
                  * guest memory
@@ -5557,8 +5557,8 @@ static int get_current_guest_tsk(struct kvm_vcpu *vcpu,
                 gs_base = __HARD_CODED_GS;
         }
 
-        LOG("gs_base %llx\n", gs_base);
-        LOG("__CURRENT_TSK %lu\n", __CURRENT_TSK);
+        LOGK("gs_base %llx\n", gs_base);
+        LOGK("__CURRENT_TSK %lu\n", __CURRENT_TSK);
 
         /*
          * kernel will do a movl %gs:__CURRENT_TSK, %reg
@@ -5566,13 +5566,13 @@ static int get_current_guest_tsk(struct kvm_vcpu *vcpu,
          * to the same here.
          */
         curr_tsk_addr = (void *) (gs_base + __CURRENT_TSK);
-	LOG("curr_task_addr @ 0x%p\n", curr_tsk_addr);
+	LOGK("curr_task_addr @ 0x%p\n", curr_tsk_addr);
 
         curr_tsk_vaddr = *(gva_t *) &curr_tsk_addr;
-	LOG("curr_task_vaddr @ 0x%lx\n", curr_tsk_vaddr);
+	LOGK("curr_task_vaddr @ 0x%lx\n", curr_tsk_vaddr);
 
         curr_tsk_paddr = vcpu->arch.walk_mmu->gva_to_gpa(vcpu, curr_tsk_vaddr, 0, &e);
-        LOG("curr_tsk_paddr @ 0x%llx\n", curr_tsk_paddr);
+        LOGK("curr_tsk_paddr @ 0x%llx\n", curr_tsk_paddr);
 
 
         /* 
@@ -5587,19 +5587,19 @@ static int get_current_guest_tsk(struct kvm_vcpu *vcpu,
                                    sizeof(struct task_struct *), vcpu, 0, &e);
 
         if (r != X86EMUL_CONTINUE) {
-                LOG("kvm_read_guest_virt err with %d\n", r);
+                LOGK("kvm_read_guest_virt err with %d\n", r);
                 return 1;
         }
 
         /* this should be returned to perf */
-        LOG("curr_tsk is at %lx\n", *(unsigned long *) &curr_tsk);
+        LOGK("curr_tsk is at %lx\n", *(unsigned long *) &curr_tsk);
 
         /* fetch the whole thing now */
 	r = kvm_read_guest_virt_helper(*(gva_t *) &curr_tsk, rtsk, 
                                    sizeof(struct task_struct), vcpu, 0, &e);
 
         if (r != X86EMUL_CONTINUE) {
-                LOG("kvm_read_guest_virt err with %d\n", r);
+                LOGK("kvm_read_guest_virt err with %d\n", r);
                 return 1;
         }
         return 0;
@@ -5615,18 +5615,18 @@ static struct task_struct *kvm_get_guest_current(void)
         vcpu = __this_cpu_read(current_vcpu);
 
 	if (!kvm_is_in_guest()) {
-		LOG("### not in guest\n");
+		LOGK("### not in guest\n");
 		return NULL;
 	}
 
         /* makes no sense to get pid 0 */
 	if (!kvm_is_user_mode()) {
-		LOG("########## not in user-space\n");
+		LOGK("########## not in user-space\n");
                 return NULL;
 	}
 
 	kpgd = kvm_read_cr3(vcpu);
-	LOG("cr3 @ 0x%llx\n", kpgd);
+	LOGK("cr3 @ 0x%llx\n", kpgd);
 	get_and_print_segments(vcpu);
 
         /* this will hold on the current task from guest */
@@ -5636,14 +5636,14 @@ static struct task_struct *kvm_get_guest_current(void)
         }
 
         if (get_current_guest_tsk(vcpu, curr_tsk)) {
-                LOG("failed to get current tsk\n");
+                LOGK("failed to get current tsk\n");
                 return NULL;
         }
 
 
-        LOG(">>>\n");
-        LOG("comm: %s\n", curr_tsk->comm);
-        LOG("pid: %d\n", curr_tsk->pid);
+        LOGK(">>>\n");
+        LOGK("comm: %s\n", curr_tsk->comm);
+        LOGK("pid: %d\n", curr_tsk->pid);
 
         return curr_tsk;
 }
@@ -5693,6 +5693,14 @@ static struct pt_regs *kvm_get_guest_regs(void)
 }
 
 static struct perf_guest_info_callbacks kvm_guest_cbs = {
+	.is_in_guest		= kvm_is_in_guest,
+	.is_user_mode		= kvm_is_user_mode,
+	.get_guest_ip		= kvm_get_guest_ip,
+	.get_guest_regs		= kvm_get_guest_regs,
+	.get_guest_current	= kvm_get_guest_current,
+};
+
+static struct guest_callbacks guest_cbs = {
 	.is_in_guest		= kvm_is_in_guest,
 	.is_user_mode		= kvm_is_user_mode,
 	.get_guest_ip		= kvm_get_guest_ip,
@@ -5829,6 +5837,7 @@ int kvm_arch_init(void *opaque)
 	kvm_timer_init();
 
 	perf_register_guest_info_callbacks(&kvm_guest_cbs);
+        nmi_register_guest_cbs(&guest_cbs);
 
 	if (cpu_has_xsave)
 		host_xcr0 = xgetbv(XCR_XFEATURE_ENABLED_MASK);
@@ -5849,6 +5858,7 @@ out:
 void kvm_arch_exit(void)
 {
 	perf_unregister_guest_info_callbacks(&kvm_guest_cbs);
+        nmi_unregister_guest_cbs(&guest_cbs);
 
 	if (!boot_cpu_has(X86_FEATURE_CONSTANT_TSC))
 		cpufreq_unregister_notifier(&kvmclock_cpufreq_notifier_block,
@@ -6875,7 +6885,7 @@ int kvm_arch_vcpu_ioctl_translate(struct kvm_vcpu *vcpu,
 	gpa_t gpa;
 	int idx;
 
-	LOG("got vaddr %lx\n", vaddr);
+	LOGK("got vaddr %lx\n", vaddr);
 	idx = srcu_read_lock(&vcpu->kvm->srcu);
 	gpa = kvm_mmu_gva_to_gpa_system(vcpu, vaddr, NULL);
 	srcu_read_unlock(&vcpu->kvm->srcu, idx);
