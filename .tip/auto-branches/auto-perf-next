@@ -19,3 +19,4 @@ perf/uprobes
 perf/x86-ibs
 perf/hw-branch-sampling
 perf/x86
+rfc/perf
