@@ -3605,12 +3605,10 @@ static int remove_fds(int fd, struct list_head *head)
 {
         struct perf_event_fd *pos, *tmp;
         int r = 1;
-        LOGK("got fd %d to remove from list\n", fd);
 
         mutex_lock(&perf_event_fd_lock);
         list_for_each_entry_safe(pos, tmp, &perf_fds, list) {
                 if (fd == pos->fd) {
-                        LOGK("found %d fd to remove from list\n", fd);
                         list_del(&pos->list);
                         kfree(pos);
                         r = 0;
@@ -5455,6 +5453,7 @@ static unsigned long kvm_get_guest_ip(void)
         };
 */
 
+#if 0
 static void print_segment(const char *seg_name, struct kvm_segment *seg)
 {
 	LOGK("segment %s, base: 0x%llx, limit: 0x%x, "
@@ -5463,7 +5462,6 @@ static void print_segment(const char *seg_name, struct kvm_segment *seg)
 	    seg->selector, seg->type, 
             seg->present, seg->dpl);
 }
-
 static void get_and_print_segments(struct kvm_vcpu *vcpu)
 {
 	struct kvm_segment seg;
@@ -5477,15 +5475,15 @@ static void get_and_print_segments(struct kvm_vcpu *vcpu)
 	kvm_get_segment(vcpu, &seg, VCPU_SREG_FS);
 	print_segment("fs", &seg);
 }
-
-
-#if 0
-        usefully for debugging memory contents from
-        within the kernel
-
-        print_hex_dump(KERN_DEBUG, "curr_task :", DUMP_PREFIX_ADDRESS, 16,
-                        1, curr_tsk, sizeof(struct task_struct), 1);
 #endif
+
+/*
+ *       usefully for debugging memory contents from
+ *       within the kernel
+ *
+ *       print_hex_dump(KERN_DEBUG, "curr_task :", DUMP_PREFIX_ADDRESS, 16,
+ *                       1, curr_tsk, sizeof(struct task_struct), 1);
+*/
 
 /*
  * __CURRENT_TASK address points to &init_task, but
@@ -5557,22 +5555,16 @@ static int get_current_guest_tsk(struct kvm_vcpu *vcpu,
                 gs_base = __HARD_CODED_GS;
         }
 
-        LOGK("gs_base %llx\n", gs_base);
-        LOGK("__CURRENT_TSK %lu\n", __CURRENT_TSK);
-
         /*
          * kernel will do a movl %gs:__CURRENT_TSK, %reg
          * to find out the current task running, so
          * to the same here.
          */
         curr_tsk_addr = (void *) (gs_base + __CURRENT_TSK);
-	LOGK("curr_task_addr @ 0x%p\n", curr_tsk_addr);
 
         curr_tsk_vaddr = *(gva_t *) &curr_tsk_addr;
-	LOGK("curr_task_vaddr @ 0x%lx\n", curr_tsk_vaddr);
 
         curr_tsk_paddr = vcpu->arch.walk_mmu->gva_to_gpa(vcpu, curr_tsk_vaddr, 0, &e);
-        LOGK("curr_tsk_paddr @ 0x%llx\n", curr_tsk_paddr);
 
 
         /* 
@@ -5615,19 +5607,15 @@ static struct task_struct *kvm_get_guest_current(void)
         vcpu = __this_cpu_read(current_vcpu);
 
 	if (!kvm_is_in_guest()) {
-		LOGK("### not in guest\n");
 		return NULL;
 	}
 
         /* makes no sense to get pid 0 */
 	if (!kvm_is_user_mode()) {
-		LOGK("########## not in user-space\n");
                 return NULL;
 	}
 
 	kpgd = kvm_read_cr3(vcpu);
-	LOGK("cr3 @ 0x%llx\n", kpgd);
-	get_and_print_segments(vcpu);
 
         /* this will hold on the current task from guest */
         curr_tsk = kzalloc(sizeof(*curr_tsk), GFP_KERNEL);
@@ -5636,15 +5624,11 @@ static struct task_struct *kvm_get_guest_current(void)
         }
 
         if (get_current_guest_tsk(vcpu, curr_tsk)) {
-                LOGK("failed to get current tsk\n");
                 return NULL;
         }
 
 
-        LOGK(">>>\n");
-        LOGK("comm: %s\n", curr_tsk->comm);
-        LOGK("pid: %d\n", curr_tsk->pid);
-
+        LOGK(">>> comm: %s, pid: %d\n", curr_tsk->comm, curr_tsk->pid);
         return curr_tsk;
 }
 
@@ -6885,7 +6869,7 @@ int kvm_arch_vcpu_ioctl_translate(struct kvm_vcpu *vcpu,
 	gpa_t gpa;
 	int idx;
 
-	LOGK("got vaddr %lx\n", vaddr);
+	//LOGK("got vaddr %lx\n", vaddr);
 	idx = srcu_read_lock(&vcpu->kvm->srcu);
 	gpa = kvm_mmu_gva_to_gpa_system(vcpu, vaddr, NULL);
 	srcu_read_unlock(&vcpu->kvm->srcu, idx);
