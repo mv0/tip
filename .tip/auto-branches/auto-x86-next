@@ -190,3 +190,4 @@ x86/asmlinkage
 x86/uaccess
 x86/iommu
 x86/intel-mid
+x86/mpx
