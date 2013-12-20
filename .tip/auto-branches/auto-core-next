@@ -10,3 +10,4 @@ core/urgent
 numa/core
 core/efi
 core/mutexes
+core/stackprotector
