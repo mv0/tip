@@ -191,3 +191,4 @@ x86/uaccess
 x86/iommu
 x86/intel-mid
 x86/mpx
+x86/efi-kexec
