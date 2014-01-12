@@ -4,3 +4,4 @@ sched/arch
 sched/numa
 core/rcu
 sched/mm
+sched/idle
