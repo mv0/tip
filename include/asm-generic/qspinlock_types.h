@@ -26,16 +26,28 @@
 /*
  * The queue spinlock data structure - a 32-bit word
  *
- * The bits assignment are:
+ * For NR_CPUS >= 16K, the bits assignment are:
  *   Bit  0   : Set if locked
  *   Bits 1-7 : Not used
  *   Bits 8-31: Queue code
+ *
+ * For NR_CPUS < 16K, the bits assignment are:
+ *   Bit   0   : Set if locked
+ *   Bits  1-7 : Not used
+ *   Bits  8-15: Reserved for architecture specific optimization
+ *   Bits 16-31: Queue code
  */
 typedef struct qspinlock {
 	atomic_t	qlcode;	/* Lock + queue code */
 } arch_spinlock_t;
 
-#define _QCODE_OFFSET		8
+#if CONFIG_NR_CPUS >= (1 << 14)
+# define _Q_MANY_CPUS
+# define _QCODE_OFFSET	8
+#else
+# define _QCODE_OFFSET	16
+#endif
+
 #define _QSPINLOCK_LOCKED	1U
 #define	_QCODE(lock)	(atomic_read(&(lock)->qlcode) >> _QCODE_OFFSET)
 #define	_QLOCK(lock)	(atomic_read(&(lock)->qlcode) & _QSPINLOCK_LOCKED)
