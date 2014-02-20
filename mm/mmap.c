@@ -2959,12 +2959,10 @@ int install_special_mapping(struct mm_struct *mm,
 			    unsigned long addr, unsigned long len,
 			    unsigned long vm_flags, struct page **pages)
 {
-	struct vm_area_struct *vma = _install_special_mapping(mm,
-			    addr, len, vm_flags, pages);
+	struct vm_area_struct *vma;
 
-	if (IS_ERR(vma))
-		return PTR_ERR(vma);
-	return 0;
+	vma = _install_special_mapping(mm, addr, len, vm_flags, pages);
+	return PTR_ERR_OR_ZERO(vma);
 }
 
 static DEFINE_MUTEX(mm_all_locks_mutex);
